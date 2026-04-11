@@ -1,0 +1,457 @@
+{
+  "name": "cheque_scanner_webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// [V4] CHEQUE SCANNER: FLATTEN — imagePath forwarded through pipeline\nconst fs = require('fs');\nconst httpItems = $input.all();\nconst output = [];\n\nif (!httpItems || httpItems.length === 0) return [];\n\nconsole.log(`🔍 Flatten V4: ${httpItems.length} items`);\n\n// ── Build lookup: imagePath from Build GPT-OSS Extract (forwarded from Init Job) ──\nlet ctxItems = [];\ntry {\n  ctxItems = $('Build GPT-OSS Extract Request').all();\n  console.log(`📎 Got ${ctxItems.length} context items from Build GPT-OSS`);\n} catch(e) {\n  console.log('⚠️ Cannot read Build GPT-OSS items, trying Init Job...');\n  try { ctxItems = $('Init Job').all(); } catch(e2) {\n    try { ctxItems = $items('Init Job'); } catch(e3) {\n      console.log('⚠️ Cannot read Init Job items either');\n    }\n  }\n}\n\n// ⚡ LAZY: Read image from disk only now\nfunction getImageData(imgPath, mime) {\n  if (!imgPath) return '';\n  try {\n    if (!fs.existsSync(imgPath)) { console.log('⚠️ File not found:', imgPath); return ''; }\n    const imgBuffer = fs.readFileSync(imgPath);\n    const b64 = imgBuffer.toString('base64');\n    if (b64.length < 100) return '';\n    try { fs.unlinkSync(imgPath); } catch(e) {}\n    return `data:${mime || 'image/jpeg'};base64,${b64}`;\n  } catch(e) {\n    console.log('⚠️ Read error:', e.message);\n    return '';\n  }\n}\n\nfunction pushFallbackRow(ctx, status, msg, imageData) {\n  output.push({\n    json: {\n      jobId: ctx.jobId,\n      fileName: ctx.fileName,\n      status,\n      error: msg,\n      instrument_type: 'N/A',\n      issuing_bank: 'N/A',\n      cheque_date: 'N/A',\n      payee_name: 'N/A',\n      currency: 'N/A',\n      amount: 'N/A',\n      cheque_number: 'N/A',\n      image_data: imageData || ''\n    }\n  });\n}\n\nfor (let i = 0; i < httpItems.length; i++) {\n  const httpItem = httpItems[i];\n  const body = httpItem.json || {};\n\n  // ── Get context (imagePath, fileName, jobId) from forwarded pipeline ──\n  const ctxItem = ctxItems[i] || ctxItems[0];\n  const ctxJson = ctxItem ? (ctxItem.json || ctxItem) : {};\n  const _ctx = ctxJson._context || ctxJson;\n  const imgPath = _ctx.imagePath || ctxJson.imagePath || '';\n  const imgMime = _ctx.mimeType || ctxJson.mimeType || 'image/jpeg';\n  const currentFileName = _ctx.fileName || ctxJson.fileName || 'unknown';\n  const currentJobId = _ctx.jobId || ctxJson.jobId || 'unknown';\n  const ctx = { jobId: currentJobId, fileName: currentFileName };\n\n  console.log(`📄 Item ${i}: ${currentFileName} | imagePath: ${imgPath ? '✓' : '✗'}`);\n\n  // ⚡ Lazy read: encode base64 from disk right here\n  const fullImageData = getImageData(imgPath, imgMime);\n\n  // Check HTTP errors\n  if (body.error || httpItem.error || (body.statusCode && body.statusCode >= 400)) {\n    pushFallbackRow(ctx, 'error', 'GPT-OSS request failed', fullImageData);\n    continue;\n  }\n\n  let parsed = null;\n  if (body.cheque_records && Array.isArray(body.cheque_records)) {\n    parsed = body;\n  } else {\n    const msg = body.choices?.[0]?.message;\n    let content = '';\n    if (typeof msg?.content === 'string') content = msg.content;\n    else if (typeof msg?.parsed === 'object') parsed = msg.parsed;\n\n    if (content && !parsed) {\n      content = content.trim().replace(/```json\\s*/g, '').replace(/```\\s*/g, '');\n      try {\n        parsed = JSON.parse(content);\n      } catch (e) {\n        const match = content.match(/\\{[\\s\\S]*\\}/);\n        if (match) try { parsed = JSON.parse(match[0]); } catch(e2) {}\n      }\n    }\n  }\n\n  let dataArray = [];\n  if (parsed) {\n    if (Array.isArray(parsed)) dataArray = parsed;\n    else if (parsed.cheque_records && Array.isArray(parsed.cheque_records)) dataArray = parsed.cheque_records;\n    else if (parsed.records && Array.isArray(parsed.records)) dataArray = parsed.records;\n    else if (parsed.cheque_record) dataArray = [parsed.cheque_record];\n    else if (parsed.instrument_type) dataArray = [parsed];\n  }\n\n  if (dataArray.length === 0) {\n    pushFallbackRow(ctx, 'empty', 'No cheque record found', fullImageData);\n    continue;\n  }\n\n  const record = dataArray[0];\n  output.push({\n    json: {\n      jobId: ctx.jobId,\n      fileName: ctx.fileName,\n      status: 'ok',\n      instrument_type: String(record?.instrument_type || 'N/A').trim(),\n      issuing_bank: String(record?.issuing_bank || 'N/A').trim(),\n      cheque_date: String(record?.cheque_date || 'N/A').trim(),\n      payee_name: String(record?.payee_name || 'N/A').trim(),\n      currency: String(record?.currency || 'N/A').trim(),\n      amount: String(record?.amount || 'N/A').trim(),\n      cheque_number: String(record?.cheque_number || 'N/A').trim(),\n      image_data: fullImageData\n    }\n  });\n}\n\nreturn output;"
+      },
+      "id": "9cabd615-dea0-44ab-bf9e-be7302813167",
+      "name": "Flatten to Table Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4688,
+        4432
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://106.104.117.24:8434/v1/chat/completions",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestPayload }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "917ca117-e54b-455f-a333-a75d098f16f0",
+      "name": "HTTP Request1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4336,
+        4448
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const item = $input.item.json;\nconst ocrText = String(item.ocrText || '').trim();\n\nif (!ocrText) {\n  return {\n    json: {\n      jobId: item.jobId,\n      fileName: item.fileName,\n      imagePath: item.imagePath,\n      mimeType: item.mimeType,\n      requestPayload: null,\n      _context: {\n        jobId: item.jobId,\n        fileName: item.fileName,\n        imagePath: item.imagePath,\n        mimeType: item.mimeType\n      },\n      skip: true\n    }\n  };\n}\n\nconst systemPrompt = `You are a strict Hong Kong Financial Document Data Extraction Engine.\nParse the OCR text of a bank cheque and return ONLY a valid JSON object. No markdown, no explanations.\n\n### OUTPUT SCHEMA\n{\n  \"cheque_records\": [\n    {\n      \"instrument_type\": \"\",\n      \"issuing_bank\": \"\",\n      \"cheque_date\": \"\",\n      \"payee_name\": \"\",\n      \"currency\": \"\",\n      \"amount\": \"\",\n      \"cheque_number\": \"\"\n    }\n  ]\n}\n\n### FIELD EXTRACTION RULES\n1. instrument_type: \"Cheque\", \"Cashier's Order\", \"Bank Draft\", or similar.\n2. issuing_bank: Full bank name (Chinese + English if available). Fix obvious OCR typos.\n3. cheque_date: Logically extract and format the date as YYYY-MM-DD. Handle scattered, merged (e.g., DDMM YYYY), or text-based (e.g., Mar -> 03) components. Default to 20XX for 2-digit years. \n4. payee_name: The recipient on the \"PAY\" / \"付\" line. NOT the bank name in the header.\n   - OCR often garbles characters. Reconstruct the real entity name using context and common sense.\n   - Do not include the written amount (e.g., \"Ten Thousand Only\") in the payee name.\n5. currency: ISO code (e.g., HKD, USD, CNY).\n6. amount: Pure numeric string, 2 decimal places, no symbols (e.g., 55237.00).\n7. cheque_number: First 6 digits of the MICR line at the bottom. Ignore the rest.\n\n### CRITICAL RULES\n- Output raw JSON only.\n- Fill every field. Use \"N/A\" ONLY if the info is completely missing. Do NOT hallucinate.`;\nconst userPrompt = `OCR TEXT:\\n${ocrText}`;\n\nconst aiPayload = {\n  model: 'gpt-oss:120b',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: userPrompt }\n  ],\n  temperature: 0.0,\n};\n\nreturn {\n  json: {\n    jobId: item.jobId,\n    fileName: item.fileName,\n    imagePath: item.imagePath,\n    mimeType: item.mimeType,\n    requestPayload: aiPayload,\n    _context: {\n      jobId: item.jobId,\n      fileName: item.fileName,\n      imagePath: item.imagePath,\n      mimeType: item.mimeType\n    }\n  }\n};"
+      },
+      "id": "6dddd230-73b6-419e-8bf4-160bf54a9e93",
+      "name": "Build GPT-OSS Extract Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3936,
+        4432
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// [V6] Extract OCR Text — FAST: chỉ lấy export_text\nconst initItems = $('Init Job').all();\nconst currentIndex = $itemIndex;\n\nconst originalItem = initItems[currentIndex] || initItems[0];\nconst jobId = originalItem ? originalItem.json.jobId : 'unknown';\nconst fileName = originalItem ? originalItem.json.fileName : 'unknown';\nconst imagePath = originalItem ? originalItem.json.imagePath : '';\nconst mimeType = originalItem ? originalItem.json.mimeType : 'image/jpeg';\n\nconst src = $input.item.json;\n\n// ⚡ Chỉ lấy export_text — bỏ hết items[], polygon, score\nlet ocrText = '';\n\nif (src.results && Array.isArray(src.results) && src.results[0]) {\n  ocrText = String(src.results[0].export_text || '').trim();\n} else if (typeof src.export_text === 'string') {\n  ocrText = src.export_text.trim();\n} else if (src.choices?.[0]?.message?.content) {\n  ocrText = src.choices[0].message.content.trim();\n}\n\n// Handle blank\nif (!ocrText || /^blank[_\\s-]*page$/i.test(ocrText)) {\n  return {\n    json: {\n      jobId, fileName, imagePath, mimeType,\n      ocrText: '',\n      isBlank: true\n    },\n  };\n}\n\n// Clean tokens\nocrText = ocrText\n  .replace(/\\r\\n/g, '\\n')\n  .replace(/\\u00A0/g, ' ')\n  .trim();\n\n// Dedup lines\nconst rawLines = ocrText.split('\\n');\nconst cleaned = [];\nconst seen = new Set();\n\nfor (const rawLine of rawLines) {\n  const line = rawLine.trim();\n  if (!line) {\n    if (cleaned.length && cleaned[cleaned.length - 1] !== '') cleaned.push('');\n    continue;\n  }\n  const key = line.toLowerCase().replace(/\\s+/g, ' ');\n  if (seen.has(key)) continue;\n  seen.add(key);\n  cleaned.push(line);\n}\n\nlet finalText = cleaned.join('\\n').trim();\nconst HARD_LIMIT = 6000;\nif (finalText.length > HARD_LIMIT) {\n  finalText = finalText.slice(0, HARD_LIMIT);\n}\n\nconsole.log(`📄 OCR for ${fileName}: ${finalText.length} chars`);\n\nreturn {\n  json: {\n    jobId, fileName, imagePath, mimeType,\n    ocrText: finalText,\n    isBlank: false\n  },\n};\n"
+      },
+      "id": "038ec9b3-43f6-47ac-98aa-9abcb098fde0",
+      "name": "Extract OCR Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3712,
+        4432
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// [V3] Build PaddleOCR-VL Request\nconst fs = require('fs');\nconst item = $input.item.json;\n\nconst imagePath = item.imagePath;\nif (!imagePath || !fs.existsSync(imagePath)) {\n  console.error('❌ File not found:', item.fileName);\n  return [];\n}\n\nconst imgBuffer = fs.readFileSync(imagePath);\nconst b64 = imgBuffer.toString('base64');\n\nif (b64.length < 100) {\n  console.error('❌ Tiny file, skipping:', item.fileName);\n  try { fs.unlinkSync(imagePath); } catch(e) {}\n  return [];\n}\n\nlet rawMime = String(item.mimeType || 'image/jpeg').toLowerCase();\nif (rawMime === 'image/jpg') rawMime = 'image/jpeg';\nif (!rawMime.startsWith('image/')) rawMime = 'image/jpeg';\n\nreturn {\n  json: {\n    fileName: item.fileName,\n    jobId: item.jobId,\n    imagePath: item.imagePath,\n    mimeType: item.mimeType,\n    _context: { fileName: item.fileName }\n  },\n  binary: {\n    file: {\n      data: b64,\n      mimeType: rawMime,\n      fileName: item.fileName || 'image.jpg'\n    }\n  }\n};"
+      },
+      "id": "a9d73493-6f11-4c89-a507-f00f3848ecba",
+      "name": "Build PaddleOCR Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3040,
+        4432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ======================================================\n// 🔧 INIT JOB V4: FILE-BASED + IMAGEMAGICK PREPROCESSING\n// ======================================================\nconst fs = require('fs');\nconst path = require('path');\nconst { execSync } = require('child_process');\n\nconst MAX_PAGES = 200;\nconst DPI = 450;\nconst JPEG_QUALITY = 130;\nconst CONVERT_TIMEOUT = 300000;\nconst JOB_DIR = '/tmp/n8n_cheque_jobs';\nconst ENHANCE_TIMEOUT = 60000;\n\n// ── 🖼️ ImageMagick Enhancement Function ──\nlet hasImageMagick = false;\ntry {\n  execSync('convert --version', { encoding: 'utf8', timeout: 5000, stdio: 'pipe' });\n  hasImageMagick = true;\n  console.log('🖼️ ImageMagick detected — will enhance images');\n} catch(e) {\n  console.log('⚠️ ImageMagick not found — skipping enhancement');\n}\n\nfunction enhanceImage(inputPath) {\n  if (!hasImageMagick) return inputPath;\n  const dir = path.dirname(inputPath);\n  const ext = path.extname(inputPath);\n  const base = path.basename(inputPath, ext);\n  const enhancedPath = path.join(dir, `${base}_enhanced.jpg`);\n  try {\n    execSync(\n      `convert \"${inputPath}\" ` +\n      `-resize '3000x3000>' ` +\n      `-colorspace Gray>' ` +\n      `-deskew 40% ` +\n      `-normalize ` +\n      `-sharpen 0x1 ` +\n      `-density 300 ` +\n      `-quality 130 ` +\n      `\"${enhancedPath}\"`,\n      { timeout: ENHANCE_TIMEOUT, stdio: 'pipe' }\n    );\n    const stats = fs.statSync(enhancedPath);\n    if (stats.size > 1024) {\n      console.log(`✨ Enhanced: ${path.basename(inputPath)} → ${(stats.size/1024).toFixed(0)}KB`);\n      try { fs.unlinkSync(inputPath); } catch(e) {}\n      return enhancedPath;\n    } else {\n      try { fs.unlinkSync(enhancedPath); } catch(e) {}\n      return inputPath;\n    }\n  } catch(e) {\n    console.log(`⚠️ Enhance failed for ${path.basename(inputPath)}: ${e.message}`);\n    try { fs.unlinkSync(enhancedPath); } catch(e2) {}\n    return inputPath;\n  }\n}\n\nconst binaryData = $input.item.binary;\nif (!binaryData) throw new Error('No binary data found.');\n\nif (!fs.existsSync(JOB_DIR)) fs.mkdirSync(JOB_DIR, { recursive: true });\n\nconst outputItems = [];\nconst keys = Object.keys(binaryData);\nconsole.log(`🚀 [CHEQUE SCANNER V4 — PaddleOCR-VL + GPT-OSS] Processing ${keys.length} uploads...`);\n\nlet converter = 'pdftoppm';\ntry {\n  execSync('gs --version', { encoding: 'utf8', timeout: 5000, stdio: 'pipe' });\n  converter = 'gs';\n  console.log('⚡ Using Ghostscript');\n} catch(e) {\n  console.log('📦 Using pdftoppm');\n}\n\nfor (const key of keys) {\n  const fileInfo = binaryData[key];\n  if (!fileInfo) continue;\n\n  let fileBuffer;\n  try {\n    fileBuffer = await this.helpers.getBinaryDataBuffer(0, key);\n  } catch (error) {\n    console.error(`❌ Error reading ${key}:`, error);\n    continue;\n  }\n\n  const originalFileName = fileInfo.fileName || `file_${key}`;\n  const mimeType = (fileInfo.mimeType || '').toLowerCase();\n\n  if (mimeType === 'application/pdf' || originalFileName.toLowerCase().endsWith('.pdf')) {\n    const uniqueId = Math.random().toString(36).slice(2);\n    const tempDir = `/tmp/n8n_cheque_v2_${uniqueId}`;\n    const tempPdfPath = `${tempDir}/input.pdf`;\n\n    try {\n      fs.mkdirSync(tempDir, { recursive: true });\n      fs.writeFileSync(tempPdfPath, fileBuffer);\n      fileBuffer = null;\n\n      let totalPages = 0;\n      try {\n        const result = execSync(`pdfinfo \"${tempPdfPath}\" | grep \"Pages:\" | awk '{print $2}'`, {\n          encoding: 'utf8', timeout: 15000\n        }).trim();\n        totalPages = parseInt(result) || 0;\n      } catch (e) {\n        totalPages = 50;\n      }\n\n      const pagesToProcess = Math.min(totalPages, MAX_PAGES);\n      console.log(`📑 ${originalFileName}: ${pagesToProcess}p @ ${DPI}dpi`);\n\n      const outputDir = `${tempDir}/pages`;\n      fs.mkdirSync(outputDir, { recursive: true });\n\n      if (converter === 'gs') {\n        execSync(`gs -dBATCH -dNOPAUSE -dQUIET -sDEVICE=jpeg -dJPEGQ=${JPEG_QUALITY} -r${DPI} -dFirstPage=1 -dLastPage=${pagesToProcess} -sOutputFile=\"${outputDir}/page-%04d.jpg\" \"${tempPdfPath}\"`, {\n          timeout: CONVERT_TIMEOUT\n        });\n      } else {\n        execSync(`pdftoppm -jpeg -jpegopt quality=${JPEG_QUALITY} -r ${DPI} -f 1 -l ${pagesToProcess} \"${tempPdfPath}\" \"${outputDir}/page\"`, {\n          timeout: CONVERT_TIMEOUT\n        });\n      }\n\n      try { fs.unlinkSync(tempPdfPath); } catch(e) {}\n\n      const files = fs.readdirSync(outputDir)\n        .filter(f => f.endsWith('.jpg'))\n        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));\n\n      for (let idx = 0; idx < files.length; idx++) {\n        let imgPath = path.join(outputDir, files[idx]);\n        const stats = fs.statSync(imgPath);\n        if (stats.size < 2048) {\n          try { fs.unlinkSync(imgPath); } catch(e) {}\n          continue;\n        }\n        imgPath = enhanceImage(imgPath);\n        outputItems.push({\n          json: {\n            imagePath: imgPath,\n            mimeType: 'image/jpeg',\n            fileName: `${originalFileName}_p${idx + 1}.jpg`,\n            originalFileName: originalFileName,\n            isPdfPage: true,\n            pageIndex: idx + 1,\n            totalPages: files.length,\n            conversionFailed: false\n          }\n        });\n      }\n      console.log(`✅ ${originalFileName}: ${outputItems.length} items`);\n    } catch (err) {\n      console.error(`❌ PDF Error: ${err.message}`);\n      try { execSync(`rm -rf \"${tempDir}\"`); } catch (e) {}\n    }\n  } else {\n    const uniqueId = Math.random().toString(36).slice(2);\n    const ext = path.extname(originalFileName).toLowerCase() || '.jpg';\n    const tempPath = `/tmp/n8n_cheque_v2_img_${uniqueId}${ext}`;\n    fs.writeFileSync(tempPath, fileBuffer);\n    fileBuffer = null;\n    const finalPath = enhanceImage(tempPath);\n    outputItems.push({\n      json: {\n        imagePath: finalPath,\n        mimeType: 'image/jpeg',\n        fileName: originalFileName,\n        originalFileName: originalFileName,\n        isPdfPage: false,\n        conversionFailed: false\n      }\n    });\n  }\n}\n\nif (outputItems.length === 0) throw new Error('No valid files processed.');\n\nconst batchJobId = `chq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;\nconst totalFiles = outputItems.length;\n\nconst jobFile = path.join(JOB_DIR, `${batchJobId}.json`);\nfs.writeFileSync(jobFile, JSON.stringify({\n  status: 'processing',\n  expected: totalFiles,\n  done: 0,\n  createdAt: new Date().toISOString()\n}));\nconsole.log(`📝 Job file created: ${jobFile}`);\n\noutputItems.forEach(item => {\n  item.json.jobId = batchJobId;\n  item.json.expected = totalFiles;\n});\n\nconsole.log(`🚀 Job: ${batchJobId} | ${totalFiles} items`);\nreturn outputItems;"
+      },
+      "id": "1b08d9b1-a805-4c30-ab9d-3cf222e3090b",
+      "name": "Init Job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2704,
+        4416
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cheque_scan_start",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2480,
+        4432
+      ],
+      "id": "8bcd6422-50c5-41f3-8461-c750ace8e4f7",
+      "name": "Webhook",
+      "webhookId": "cheque-scan-start"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        3104,
+        4256
+      ],
+      "id": "cb92466d-5927-472d-b0a5-af6deea329ec",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "path": "cheque_scan_status",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "b5b5d659-7777-46fe-b5a2-5db5f13a0d01",
+      "name": "Webhook Status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2512,
+        4704
+      ],
+      "webhookId": "cheque-scan-status"
+    },
+    {
+      "parameters": {
+        "jsCode": "// [V2] GET STATUS — FILE-BASED (instant visibility)\nconst fs = require('fs');\nconst path = require('path');\nconst input = $input.item.json;\nconst JOB_DIR = '/tmp/n8n_cheque_jobs';\n\nconst jobId = (input.query && input.query.jobId) || (input.body && input.body.jobId) || input.jobId;\n\nif (!jobId) {\n  return [{\n    json: {\n      success: true,\n      status: 'alive',\n      ping: true,\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nconst jobFile = path.join(JOB_DIR, `${jobId}.json`);\n\nif (!fs.existsSync(jobFile)) {\n  return [{\n    json: {\n      success: true,\n      status: 'pending',\n      jobId,\n      message: 'Job not found or not started yet'\n    }\n  }];\n}\n\ntry {\n  const raw = fs.readFileSync(jobFile, 'utf8');\n  const entry = JSON.parse(raw);\n\n  if (entry.status === 'completed' || entry.status === 'completed-with-errors') {\n    const response = {\n      success: true,\n      status: entry.status,\n      jobId,\n      result: entry.result || [],\n      completedAt: entry.completedAt\n    };\n    try { fs.unlinkSync(jobFile); } catch(e) {}\n    return [{ json: response }];\n  }\n\n  return [{\n    json: {\n      success: true,\n      status: entry.status || 'processing',\n      jobId,\n      progress: entry.done ? `${entry.done}/${entry.expected || '?'}` : undefined,\n      createdAt: entry.createdAt\n    }\n  }];\n} catch(e) {\n  return [{\n    json: {\n      success: true,\n      status: 'processing',\n      jobId,\n      message: 'Reading job status...'\n    }\n  }];\n}"
+      },
+      "id": "5470c248-4440-4a0b-9e30-c3f267ed1bb2",
+      "name": "Get Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2720,
+        4704
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "GET, POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization, X-Requested-With, Origin, Accept"
+              },
+              {
+                "name": "Access-Control-Max-Age",
+                "value": "86400"
+              }
+            ]
+          }
+        }
+      },
+      "id": "a9729642-6b26-49e5-9720-5290349c5714",
+      "name": "Respond Status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2944,
+        4704
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item.json;\nconst jobId = item.jobId;\nconst expected = item.expected || 1;\n\nreturn [{\n  json: {\n    success: true,\n    jobId: jobId,\n    expected: expected,\n    message: `Processing`,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2896,
+        4288
+      ],
+      "id": "b21ebcee-7306-4b37-a190-bfa221d46b33",
+      "name": "init response"
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        4112,
+        4432
+      ],
+      "id": "e678840c-05c2-401b-9803-56a69f560b2d",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://183.179.175.50:8000/api/ocr",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Basic aWdub3JlOjE4ODQxODg0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "ocr"
+            },
+            {
+              "name": "device",
+              "value": "gpu"
+            },
+            {
+              "name": "use_layout_detection",
+              "value": "true"
+            },
+            {
+              "name": "use_doc_unwarping",
+              "value": "true"
+            },
+            {
+              "name": "use_doc_orientation_classify",
+              "value": "true"
+            },
+            {
+              "name": "use_chart_recognition",
+              "value": "true"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "file"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "8543cf37-cc01-4319-ab4a-2fadb687a4ec",
+      "name": "PaddleOCR-VL Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3344,
+        4384
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// [V4] Save Result — FILE-BASED + Cleanup\nconst fs = require('fs');\nconst path = require('path');\nconst { execSync } = require('child_process');\nconst items = $input.all();\nconst JOB_DIR = '/tmp/n8n_cheque_jobs';\n\nlet jobId = null;\nif (items.length > 0 && items[0].json.jobId) {\n  jobId = items[0].json.jobId;\n} else {\n  try { jobId = $('Init Job').first().json.jobId; } catch(e) {}\n}\n\nif (jobId) {\n  const jobFile = path.join(JOB_DIR, `${jobId}.json`);\n  const result = items.map(i => ({ ...i.json }));\n\n  fs.writeFileSync(jobFile, JSON.stringify({\n    status: 'completed',\n    result: result,\n    done: items.length,\n    expected: items.length,\n    completedAt: new Date().toISOString()\n  }));\n  console.log(`✅ Job ${jobId} saved to file: ${items.length} rows`);\n} else {\n  console.log('⚠️ No jobId found');\n}\n\n// 🧹 Cleanup temp image files\ntry {\n  execSync('rm -rf /tmp/n8n_cheque_v2_*', { timeout: 10000 });\n  console.log('🧹 Temp files cleaned');\n} catch(e) {}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4896,
+        4432
+      ],
+      "id": "503826c0-c64f-4172-922c-5b767a03f5a0",
+      "name": "Save Result"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Flatten to Table Format": {
+      "main": [
+        [
+          {
+            "node": "Save Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build GPT-OSS Extract Request": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract OCR Text": {
+      "main": [
+        [
+          {
+            "node": "Build GPT-OSS Extract Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build PaddleOCR Request": {
+      "main": [
+        [
+          {
+            "node": "PaddleOCR-VL Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Job": {
+      "main": [
+        [
+          {
+            "node": "init response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build PaddleOCR Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Init Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Status": {
+      "main": [
+        [
+          {
+            "node": "Get Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Status": {
+      "main": [
+        [
+          {
+            "node": "Respond Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "init response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Flatten to Table Format",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PaddleOCR-VL Request": {
+      "main": [
+        [
+          {
+            "node": "Extract OCR Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d7e6d14e-004e-43a2-b8c6-ec50da03338c",
+  "meta": {
+    "instanceId": "7cbcc4adf912a2f3f05c6610dc356ed5371442f57496230d911b4916e255a0cb"
+  },
+  "id": "ETPTullFu34rF9zp-4OBZ",
+  "tags": []
+}

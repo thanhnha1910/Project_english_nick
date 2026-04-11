@@ -1,0 +1,2196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Data Desensitization Tool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            /* Warm, readable palette - matching index.html */
+            --bg-void: #1a1612;
+            --bg-deep: #211d18;
+            --bg-surface: #2a2520;
+            --bg-elevated: #352f28;
+            --border-dim: #4a433a;
+            --border-glow: #c75d3822;
+
+            /* Warm accent colors */
+            --terracotta: #c75d38;
+            --terracotta-light: #e8a285;
+            --sage: #5a7a6b;
+            --sage-light: #8fb3a2;
+            --gold: #d4a956;
+            --cream: #efe9dd;
+
+            /* Status colors */
+            --yellow-alert: #d4a956;
+            --red-danger: #c75d38;
+            --green-safe: #5a7a6b;
+
+            /* Text - warm and readable */
+            --text-primary: #f5f0e8;
+            --text-secondary: #a89e92;
+            --text-dim: #6a6158;
+
+            --font-display: 'Fraunces', serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --glow-terracotta: 0 0 20px #c75d3844, 0 0 40px #c75d3822;
+            --glow-sage: 0 0 20px #5a7a6b44, 0 0 40px #5a7a6b22;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 14px;
+        }
+
+        body {
+            font-family: var(--font-mono);
+            background: var(--bg-void);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* === MATRIX BACKGROUND === */
+        .matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.03;
+            background:
+                repeating-linear-gradient(0deg,
+                    transparent,
+                    transparent 2px,
+                    var(--cyan-bright) 2px,
+                    var(--cyan-bright) 4px);
+            animation: matrix-scroll 20s linear infinite;
+        }
+
+        @keyframes matrix-scroll {
+            0% {
+                background-position: 0 0;
+            }
+
+            100% {
+                background-position: 0 1000px;
+            }
+        }
+
+        /* === GRID OVERLAY === */
+        .grid-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                linear-gradient(90deg, var(--border-dim) 1px, transparent 1px) 0 0 / 80px 80px,
+                linear-gradient(0deg, var(--border-dim) 1px, transparent 1px) 0 0 / 80px 80px;
+            opacity: 0.1;
+        }
+
+        /* === SCANLINE EFFECT === */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 999;
+            background: repeating-linear-gradient(0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.1) 2px,
+                    rgba(0, 0, 0, 0.1) 4px);
+        }
+
+        /* === MAIN CONTAINER === */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* === HEADER === */
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem 0;
+            position: relative;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--terracotta), transparent);
+        }
+
+        .logo {
+            font-family: var(--font-display);
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            color: var(--cream);
+        }
+
+        @keyframes text-flicker {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            92% {
+                opacity: 1;
+            }
+
+            93% {
+                opacity: 0.7;
+            }
+
+            94% {
+                opacity: 1;
+            }
+
+            97% {
+                opacity: 0.9;
+            }
+
+            98% {
+                opacity: 1;
+            }
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.5em;
+            margin-top: 0.5rem;
+            text-transform: uppercase;
+        }
+
+        /* === MAIN GRID === */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* === PANELS === */
+        .panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--terracotta), var(--sage));
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 1.25rem;
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--border-dim);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--terracotta-light);
+        }
+
+        .panel-icon {
+            font-size: 1.1rem;
+        }
+
+        .panel-body {
+            padding: 1.5rem;
+        }
+
+        /* === DROP ZONE === */
+        .drop-zone {
+            border: 2px dashed var(--border-dim);
+            border-radius: 8px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: var(--bg-deep);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .drop-zone::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, var(--terracotta), var(--sage));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--terracotta);
+            box-shadow: var(--glow-terracotta);
+        }
+
+        .drop-zone:hover::before,
+        .drop-zone.dragover::before {
+            opacity: 0.05;
+        }
+
+        .drop-zone-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .drop-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .drop-text {
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .drop-hint {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-selected {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-elevated);
+            border-radius: 4px;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+        }
+
+        .file-selected .file-icon {
+            color: var(--green-safe);
+        }
+
+        .file-selected .file-name {
+            flex: 1;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-selected .file-size {
+            color: var(--text-dim);
+        }
+
+        .file-selected .file-remove {
+            color: var(--red-danger);
+            cursor: pointer;
+            padding: 0.25rem;
+        }
+
+        /* === FORM CONTROLS === */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-deep);
+            border: 1px solid var(--border-dim);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .form-select:hover,
+        .form-select:focus {
+            border-color: var(--cyan-dim);
+            outline: none;
+        }
+
+        .form-select option {
+            background: var(--bg-surface);
+            color: var(--text-primary);
+        }
+
+        /* === ENTITY TOGGLES === */
+        .entity-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+        }
+
+        .entity-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-deep);
+            border: 1px solid var(--border-dim);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.75rem;
+        }
+
+        .entity-toggle:hover {
+            border-color: var(--cyan-dim);
+        }
+
+        .entity-toggle.active {
+            border-color: var(--terracotta);
+            background: rgba(199, 93, 56, 0.15);
+        }
+
+        .entity-toggle input {
+            display: none;
+        }
+
+        .entity-toggle .toggle-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-dim);
+            transition: all 0.2s ease;
+        }
+
+        .entity-toggle.active .toggle-dot {
+            background: var(--terracotta);
+            box-shadow: 0 0 8px var(--terracotta);
+        }
+
+        /* === BUTTONS === */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.5rem;
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--terracotta), var(--terracotta-light));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            box-shadow: var(--glow-terracotta);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            background: var(--text-dim);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            border: 1px solid var(--border-dim);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--magenta-dim);
+            color: var(--magenta-bright);
+        }
+
+        .btn-full {
+            width: 100%;
+        }
+
+        /* === STATUS DISPLAY === */
+        .status-box {
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .status-idle {
+            background: var(--bg-deep);
+            border: 1px solid var(--border-dim);
+            color: var(--text-secondary);
+        }
+
+        .status-processing {
+            background: rgba(199, 93, 56, 0.15);
+            border: 1px solid var(--terracotta);
+            color: var(--terracotta-light);
+        }
+
+        .status-completed {
+            background: rgba(90, 122, 107, 0.2);
+            border: 1px solid var(--sage);
+            color: var(--sage-light);
+        }
+
+        .status-error {
+            background: rgba(255, 51, 102, 0.1);
+            border: 1px solid var(--red-danger);
+            color: var(--red-danger);
+        }
+
+        .status-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* === RESULTS AREA === */
+        .results-container {
+            min-height: 400px;
+        }
+
+        .result-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .result-tab {
+            padding: 0.75rem 1.25rem;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-dim);
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            transition: all 0.2s ease;
+            color: var(--text-secondary);
+        }
+
+        .result-tab:hover {
+            color: var(--text-primary);
+        }
+
+        .result-tab.active {
+            background: var(--terracotta);
+            border-color: var(--terracotta);
+            color: white;
+        }
+
+        .result-content {
+            background: var(--bg-deep);
+            border: 1px solid var(--border-dim);
+            border-radius: 0 4px 4px 4px;
+            padding: 1.5rem;
+            min-height: 300px;
+            max-height: 600px;
+            overflow: auto;
+        }
+
+        .result-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .result-content::-webkit-scrollbar-track {
+            background: var(--bg-surface);
+        }
+
+        .result-content::-webkit-scrollbar-thumb {
+            background: var(--border-dim);
+            border-radius: 4px;
+        }
+
+        .result-content::-webkit-scrollbar-thumb:hover {
+            background: var(--cyan-dim);
+        }
+
+        /* === TEXT OUTPUT === */
+        .text-output {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* === UNIFIED ENTITY HIGHLIGHT - TERRACOTTA === */
+        .text-output .highlight-entity {
+            background: rgba(199, 93, 56, 0.30);
+            color: var(--terracotta-light);
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+            font-weight: 500;
+            border: 1px solid rgba(199, 93, 56, 0.4);
+        }
+
+        .text-output .highlight-redacted {
+            background: rgba(255, 51, 102, 0.3);
+            color: var(--red-danger);
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+            font-weight: 500;
+        }
+
+        /* === FORMATTED OUTPUT STYLES === */
+        .text-output .doc-section {
+            margin: 1.5rem 0;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-dim);
+        }
+
+        .text-output .doc-heading {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--terracotta-light);
+            margin: 1.5rem 0 0.75rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--terracotta);
+        }
+
+        .text-output .doc-subheading {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--cream);
+            margin: 1rem 0 0.5rem 0;
+        }
+
+        .text-output .doc-source {
+            background: var(--bg-elevated);
+            padding: 0.5rem 1rem;
+            margin: 1rem 0;
+            border-left: 3px solid var(--sage);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .text-output .doc-table {
+            display: table;
+            width: 100%;
+            margin: 0.75rem 0;
+            border: 1px solid var(--border-dim);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .text-output .doc-row {
+            display: table-row;
+        }
+
+        .text-output .doc-row:nth-child(even) {
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .text-output .doc-field {
+            display: table-cell;
+            padding: 0.5rem 0.75rem;
+            width: 30%;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-right: 1px solid var(--border-dim);
+            vertical-align: top;
+        }
+
+        .text-output .doc-value {
+            display: table-cell;
+            padding: 0.5rem 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .text-output .doc-paragraph {
+            margin: 0.75rem 0;
+            line-height: 1.7;
+        }
+
+        .text-output .doc-list-item {
+            margin: 0.25rem 0 0.25rem 1.5rem;
+            position: relative;
+        }
+
+        .text-output .doc-list-item::before {
+            content: '•';
+            position: absolute;
+            left: -1rem;
+            color: var(--terracotta);
+        }
+
+        /* === AUDIT LOG === */
+        .audit-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        .audit-table th,
+        .audit-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-dim);
+        }
+
+        .audit-table th {
+            background: var(--bg-surface);
+            color: var(--text-secondary);
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+        }
+
+        .audit-table tr:hover {
+            background: rgba(0, 255, 204, 0.05);
+        }
+
+        .audit-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-person {
+            background: rgba(199, 93, 56, 0.25);
+            color: var(--terracotta-light);
+        }
+
+        .badge-email {
+            background: rgba(90, 122, 107, 0.25);
+            color: var(--sage-light);
+        }
+
+        .badge-phone {
+            background: rgba(212, 169, 86, 0.25);
+            color: var(--gold);
+        }
+
+        .badge-address {
+            background: rgba(90, 122, 107, 0.25);
+            color: var(--sage-light);
+        }
+
+        .badge-financial {
+            background: rgba(255, 51, 102, 0.2);
+            color: var(--red-danger);
+        }
+
+        .badge-default {
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+        }
+
+        /* === STATS CARDS === */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-dim);
+            border-radius: 4px;
+            padding: 1rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 3px;
+            height: 100%;
+        }
+
+        .stat-card.cyan::before {
+            background: var(--terracotta);
+        }
+
+        .stat-card.magenta::before {
+            background: var(--sage);
+        }
+
+        .stat-card.yellow::before {
+            background: var(--gold);
+        }
+
+        .stat-card.green::before {
+            background: var(--sage);
+        }
+
+        .stat-value {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 0.25rem;
+        }
+
+        /* === PLACEHOLDER === */
+        .placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            color: var(--text-dim);
+            text-align: center;
+        }
+
+        .placeholder-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .placeholder-text {
+            font-size: 0.9rem;
+            max-width: 300px;
+        }
+
+        /* === ANIMATIONS === */
+        .fade-in {
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        /* === GLITCH EFFECT === */
+        .glitch {
+            position: relative;
+        }
+
+        .glitch::before,
+        .glitch::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-void);
+        }
+
+        .glitch::before {
+            left: 2px;
+            text-shadow: -2px 0 var(--magenta-bright);
+            clip: rect(24px, 550px, 90px, 0);
+            animation: glitch-anim 3s infinite linear alternate-reverse;
+        }
+
+        .glitch::after {
+            left: -2px;
+            text-shadow: -2px 0 var(--cyan-bright);
+            clip: rect(85px, 550px, 140px, 0);
+            animation: glitch-anim 2s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim {
+            0% {
+                clip: rect(42px, 9999px, 44px, 0);
+            }
+
+            5% {
+                clip: rect(12px, 9999px, 59px, 0);
+            }
+
+            10% {
+                clip: rect(48px, 9999px, 29px, 0);
+            }
+
+            15% {
+                clip: rect(42px, 9999px, 73px, 0);
+            }
+
+            20% {
+                clip: rect(63px, 9999px, 27px, 0);
+            }
+
+            25% {
+                clip: rect(34px, 9999px, 55px, 0);
+            }
+
+            30% {
+                clip: rect(86px, 9999px, 73px, 0);
+            }
+
+            35% {
+                clip: rect(20px, 9999px, 20px, 0);
+            }
+
+            40% {
+                clip: rect(26px, 9999px, 60px, 0);
+            }
+
+            45% {
+                clip: rect(25px, 9999px, 66px, 0);
+            }
+
+            50% {
+                clip: rect(57px, 9999px, 98px, 0);
+            }
+
+            55% {
+                clip: rect(5px, 9999px, 46px, 0);
+            }
+
+            60% {
+                clip: rect(82px, 9999px, 31px, 0);
+            }
+
+            65% {
+                clip: rect(54px, 9999px, 27px, 0);
+            }
+
+            70% {
+                clip: rect(28px, 9999px, 99px, 0);
+            }
+
+            75% {
+                clip: rect(45px, 9999px, 69px, 0);
+            }
+
+            80% {
+                clip: rect(23px, 9999px, 30px, 0);
+            }
+
+            85% {
+                clip: rect(54px, 9999px, 39px, 0);
+            }
+
+            90% {
+                clip: rect(62px, 9999px, 42px, 0);
+            }
+
+            95% {
+                clip: rect(29px, 9999px, 10px, 0);
+            }
+
+            100% {
+                clip: rect(53px, 9999px, 82px, 0);
+            }
+        }
+
+        /* === CONSOLE OUTPUT === */
+        .console-output {
+            background: #000;
+            border: 1px solid var(--border-dim);
+            border-radius: 4px;
+            padding: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 1rem;
+        }
+
+        .console-line {
+            margin-bottom: 0.25rem;
+            opacity: 0.8;
+        }
+
+        .console-line::before {
+            content: '>';
+            color: var(--cyan-bright);
+            margin-right: 0.5rem;
+        }
+
+        .console-line.error::before {
+            content: '✗';
+            color: var(--red-danger);
+        }
+
+        .console-line.success::before {
+            content: '✓';
+            color: var(--green-safe);
+        }
+
+        /* === COPY BUTTON === */
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            padding: 0.5rem;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-dim);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            border-color: var(--cyan-dim);
+            color: var(--cyan-bright);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="matrix-bg"></div>
+    <div class="grid-overlay"></div>
+    <div class="scanlines"></div>
+
+    <div class="container">
+        <!-- HEADER -->
+        <header class="header">
+            <h1 class="logo glitch" data-text="DATA DESENSITIZATION">DATA DESENSITIZATION</h1>
+            <p class="subtitle">Enterprise PII/PHI Redaction Engine</p>
+        </header>
+
+        <!-- MAIN GRID -->
+        <div class="main-grid">
+            <!-- LEFT PANEL: CONTROLS -->
+            <aside>
+                <!-- FILE UPLOAD -->
+                <div class="panel" style="margin-bottom: 1.5rem;">
+                    <div class="panel-header">
+                        <span class="panel-icon">📁</span>
+                        <span>File Upload</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="drop-zone" id="dropZone">
+                            <div class="drop-zone-content">
+                                <span class="drop-icon">⬆️</span>
+                                <p class="drop-text">Drop file here or click to upload</p>
+                                <p class="drop-hint">Supports PDF, DOCX, DOC, TXT, images</p>
+                            </div>
+                            <input type="file" class="file-input" id="fileInput"
+                                accept=".pdf,.docx,.doc,.txt,.md,.jpg,.jpeg,.png,.zip">
+                        </div>
+                        <div class="file-selected" id="fileSelected" style="display: none;">
+                            <span class="file-icon">📄</span>
+                            <span class="file-name" id="fileName"></span>
+                            <span class="file-size" id="fileSize"></span>
+                            <span class="file-remove" id="fileRemove">✕</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONFIGURATION -->
+                <div class="panel" style="margin-bottom: 1.5rem;">
+                    <div class="panel-header">
+                        <span class="panel-icon">⚙️</span>
+                        <span>Configuration</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="form-group">
+                            <label class="form-label">Transform Mode</label>
+                            <select class="form-select" id="transformMode">
+                                <option value="pseudonymize">🔄 Pseudonymize (John → PERSON_001)</option>
+                                <option value="mask">🎭 Mask (john@email → joh***@email)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Entity Types</label>
+                            <div class="entity-grid" id="entityGrid">
+                                <label class="entity-toggle active">
+                                    <input type="checkbox" value="PERSON_NAME" checked>
+                                    <span class="toggle-dot"></span>
+                                    <span>Names</span>
+                                </label>
+                                <label class="entity-toggle active">
+                                    <input type="checkbox" value="EMAIL" checked>
+                                    <span class="toggle-dot"></span>
+                                    <span>Emails</span>
+                                </label>
+                                <label class="entity-toggle active">
+                                    <input type="checkbox" value="PHONE" checked>
+                                    <span class="toggle-dot"></span>
+                                    <span>Phones</span>
+                                </label>
+                                <label class="entity-toggle active">
+                                    <input type="checkbox" value="ADDRESS" checked>
+                                    <span class="toggle-dot"></span>
+                                    <span>Addresses</span>
+                                </label>
+                                <label class="entity-toggle active">
+                                    <input type="checkbox" value="DOB" checked>
+                                    <span class="toggle-dot"></span>
+                                    <span>DOB</span>
+                                </label>
+                                <label class="entity-toggle active">
+                                    <input type="checkbox" value="HKID" checked>
+                                    <span class="toggle-dot"></span>
+                                    <span>HKID</span>
+                                </label>
+                                <label class="entity-toggle active">
+                                    <input type="checkbox" value="FINANCIAL" checked>
+                                    <span class="toggle-dot"></span>
+                                    <span>Financial</span>
+                                </label>
+                                <label class="entity-toggle active">
+                                    <input type="checkbox" value="MEDICAL_ID" checked>
+                                    <span class="toggle-dot"></span>
+                                    <span>Medical</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary btn-full" id="startBtn" disabled>
+                            <span>🔐</span>
+                            <span>Start Desensitization</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- STATUS -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-icon">📡</span>
+                        <span>Status</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="status-box status-idle" id="statusBox">
+                            <span>⏸️</span>
+                            <span id="statusText">Waiting for file...</span>
+                        </div>
+                        <div id="jobInfo" style="display: none; font-size: 0.75rem; color: var(--text-dim);">
+                            Job ID: <span id="jobIdDisplay"></span>
+                        </div>
+                        <div class="console-output" id="console" style="display: none;"></div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- RIGHT PANEL: RESULTS -->
+            <main>
+                <div class="panel results-container">
+                    <div class="panel-header">
+                        <span class="panel-icon">📊</span>
+                        <span>Results</span>
+                    </div>
+                    <div class="panel-body">
+                        <!-- Stats -->
+                        <div class="stats-grid" id="statsGrid" style="display: none;">
+                            <div class="stat-card cyan">
+                                <div class="stat-value" id="statEntities">0</div>
+                                <div class="stat-label">Entities Found</div>
+                            </div>
+                            <div class="stat-card magenta">
+                                <div class="stat-value" id="statTransformed">0</div>
+                                <div class="stat-label">Transformed</div>
+                            </div>
+                            <div class="stat-card yellow">
+                                <div class="stat-value" id="statOriginalLen">0</div>
+                                <div class="stat-label">Original Chars</div>
+                            </div>
+                            <div class="stat-card green">
+                                <div class="stat-value" id="statProcessedLen">0</div>
+                                <div class="stat-label">Processed Chars</div>
+                            </div>
+                        </div>
+
+                        <!-- Tabs -->
+                        <div class="result-tabs" id="resultTabs" style="display: none;">
+                            <button class="result-tab active" data-tab="output">Output</button>
+                            <button class="result-tab" data-tab="audit">Audit Log</button>
+                            <button class="result-tab" data-tab="raw">Raw JSON</button>
+                        </div>
+
+                        <!-- Tab Content -->
+                        <div class="result-content" id="resultContent">
+                            <div class="placeholder" id="placeholder">
+                                <span class="placeholder-icon">🔒</span>
+                                <p class="placeholder-text">Upload a document and click "Start Desensitization" to begin
+                                    processing</p>
+                            </div>
+                            <div id="outputTab" style="display: none; position: relative;">
+                                <div
+                                    style="display: flex; gap: 0.5rem; position: absolute; top: 0.5rem; right: 0.5rem; z-index: 10;">
+                                    <button class="copy-btn" onclick="copyOutput()" style="position: static;">📋
+                                        Copy</button>
+                                    <button class="copy-btn" onclick="downloadDocx()" style="position: static;">📥
+                                        DOCX</button>
+                                </div>
+                                <div class="text-output" id="outputText" style="padding-top: 2.5rem;"></div>
+                            </div>
+                            <div id="auditTab" style="display: none;">
+                                <table class="audit-table" id="auditTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Type</th>
+                                            <th>Original</th>
+                                            <th>Replacement</th>
+                                            <th>Confidence</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="auditBody"></tbody>
+                                </table>
+                            </div>
+                            <div id="rawTab" style="display: none; position: relative;">
+                                <button class="copy-btn" onclick="copyRaw()">📋 Copy</button>
+                                <pre class="text-output" id="rawJson" style="color: var(--text-secondary);"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // ========================================
+        // CONFIGURATION
+        // ========================================
+        const API_BASE = 'https://n8n-nick.abapi.dev/webhook';
+        const POLL_INTERVAL = 2000;
+
+        // ========================================
+        // STATE
+        // ========================================
+        let selectedFile = null;
+        let currentJobId = null;
+        let pollTimer = null;
+        let rawResult = null;
+
+        // ========================================
+        // DOM ELEMENTS
+        // ========================================
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileSelected = document.getElementById('fileSelected');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileRemove = document.getElementById('fileRemove');
+        const startBtn = document.getElementById('startBtn');
+        const statusBox = document.getElementById('statusBox');
+        const statusText = document.getElementById('statusText');
+        const jobInfo = document.getElementById('jobInfo');
+        const jobIdDisplay = document.getElementById('jobIdDisplay');
+        const consoleEl = document.getElementById('console');
+        const statsGrid = document.getElementById('statsGrid');
+        const resultTabs = document.getElementById('resultTabs');
+        const resultContent = document.getElementById('resultContent');
+        const placeholder = document.getElementById('placeholder');
+        const transformMode = document.getElementById('transformMode');
+        const entityGrid = document.getElementById('entityGrid');
+
+        // ========================================
+        // FILE HANDLING
+        // ========================================
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        fileRemove.addEventListener('click', () => {
+            selectedFile = null;
+            fileInput.value = '';
+            fileSelected.style.display = 'none';
+            startBtn.disabled = true;
+            log('File removed');
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatBytes(file.size);
+            fileSelected.style.display = 'flex';
+            startBtn.disabled = false;
+            log(`File selected: ${file.name} (${formatBytes(file.size)})`);
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // ========================================
+        // ENTITY TOGGLES
+        // ========================================
+        entityGrid.querySelectorAll('.entity-toggle').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                const checkbox = toggle.querySelector('input');
+                checkbox.checked = !checkbox.checked;
+                toggle.classList.toggle('active', checkbox.checked);
+            });
+        });
+
+        function getSelectedEntities() {
+            const entities = [];
+            entityGrid.querySelectorAll('input:checked').forEach(input => {
+                entities.push(input.value);
+            });
+            return entities;
+        }
+
+        // ========================================
+        // CONSOLE LOGGING
+        // ========================================
+        function log(message, type = 'info') {
+            consoleEl.style.display = 'block';
+            const line = document.createElement('div');
+            line.className = `console-line ${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleEl.appendChild(line);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        // ========================================
+        // STATUS UPDATE
+        // ========================================
+        function setStatus(status, text) {
+            statusBox.className = `status-box status-${status}`;
+            statusText.textContent = text;
+
+            if (status === 'processing') {
+                statusText.innerHTML = `<span class="status-spinner"></span> ${text}`;
+            }
+        }
+
+        // ========================================
+        // START PROCESSING
+        // ========================================
+        startBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            setStatus('processing', 'Uploading file...');
+            startBtn.disabled = true;
+            log('Starting desensitization process...');
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('transformMode', transformMode.value);
+            formData.append('entityTypes', JSON.stringify(getSelectedEntities()));
+
+            try {
+                const response = await fetch(`${API_BASE}/desensitize-start`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.jobId) {
+                    currentJobId = data.jobId;
+                    jobIdDisplay.textContent = currentJobId;
+                    jobInfo.style.display = 'block';
+                    log(`Job started: ${currentJobId}`, 'success');
+                    setStatus('processing', 'Processing document...');
+                    startPolling();
+                } else {
+                    throw new Error(data.message || 'Failed to start job');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                setStatus('error', error.message);
+                startBtn.disabled = false;
+            }
+        });
+
+        // ========================================
+        // POLLING
+        // ========================================
+        function startPolling() {
+            pollTimer = setInterval(pollStatus, POLL_INTERVAL);
+        }
+
+        function stopPolling() {
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+        }
+
+        async function pollStatus() {
+            if (!currentJobId) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/desensitize-status?jobId=${currentJobId}`);
+                const data = await response.json();
+
+                if (data.status === 'completed') {
+                    stopPolling();
+                    log('Processing completed!', 'success');
+                    setStatus('completed', 'Completed successfully');
+                    displayResults(data.result);
+                    startBtn.disabled = false;
+                } else if (data.status === 'completed-with-errors') {
+                    stopPolling();
+                    log('Completed with errors', 'error');
+                    setStatus('error', 'Completed with errors');
+                    displayResults(data.result);
+                    startBtn.disabled = false;
+                } else if (data.status === 'processing') {
+                    log(`Status: processing... ${data.progress || ''}`);
+                }
+            } catch (error) {
+                log(`Poll error: ${error.message}`, 'error');
+            }
+        }
+
+        // ========================================
+        // DISPLAY RESULTS
+        // ========================================
+        function displayResults(result) {
+            if (!result) return;
+
+            rawResult = result;
+            placeholder.style.display = 'none';
+            statsGrid.style.display = 'grid';
+            resultTabs.style.display = 'flex';
+
+            // Stats - Support both old and new formats
+            const audit = result.audit || {};
+            document.getElementById('statEntities').textContent = audit.totalEntitiesFound || audit.totalEntities || 0;
+            document.getElementById('statTransformed').textContent = audit.entitiesTransformed || audit.replacedCount || 0;
+            document.getElementById('statOriginalLen').textContent = (result.originalLength || 0).toLocaleString();
+            document.getElementById('statProcessedLen').textContent = (result.processedLength || 0).toLocaleString();
+
+            // Output text with highlighting - UNIFIED TERRACOTTA COLOR
+            const outputTab = document.getElementById('outputTab');
+            const outputText = document.getElementById('outputText');
+            let text = result.desensitizedText || '';
+
+            // STEP 1: Highlight entities FIRST (before HTML formatting)
+            // Use unique markers that won't be affected by escapeHtml
+            const HL_START = '⟦HLSTART⟧';
+            const HL_END = '⟦HLEND⟧';
+
+            if (transformMode.value === 'pseudonymize') {
+                // Match all entity patterns: TYPE_NUMBER format (e.g. PERSON_NAME_1, ORGANIZATION_2)
+                text = text.replace(/\b([A-Z][A-Z0-9]*(?:_[A-Z][A-Z0-9]*)*_\d+)\b/g, `${HL_START}$1${HL_END}`);
+            } else if (transformMode.value === 'mask') {
+                // Collect all masked values from audit log
+                const replacements = new Set();
+                const auditLog = result.audit?.transformLog || [];
+
+                if (result.audit?.aliasMap) {
+                    Object.values(result.audit.aliasMap).forEach(v => replacements.add(v));
+                }
+                auditLog.forEach(e => {
+                    const val = e.replacement || e.pseudonym;
+                    if (val) replacements.add(val);
+                });
+
+                // Sort by length desc to avoid partial matches
+                const sortedReplacements = Array.from(replacements).sort((a, b) => b.length - a.length);
+
+                sortedReplacements.forEach(rep => {
+                    if (!rep || rep.length < 2) return;
+                    const escaped = rep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    try {
+                        const regex = new RegExp(escaped, 'g');
+                        text = text.replace(regex, `${HL_START}$&${HL_END}`);
+                    } catch (e) {
+                        console.error('Highlight regex error:', e);
+                    }
+                });
+
+                // ENHANCED FALLBACK: Comprehensive mask patterns
+                const maskPatterns = [
+                    /[A-Z]\*{2,8}(?:\s+[A-Z]\*{1,8})*/g,           // M****** C** (names)
+                    /[a-zA-Z]\*{4,}@[\w.-]+\.\w+/g,                 // m****@domain.com (emails)
+                    /\d{4}\s+XXXX\s+XXXX\s+\d{4}/g,                 // 4532 XXXX XXXX 3455 (CC)
+                    /\*{3}-\*{2}-\d{4}/g,                           // ***-**-1234 (SSN)
+                    /\d+\.\d+\.\*{3}\.\*{3}/g,                      // 192.168.***.**** (IP)
+                    /[\+\d\s\(\)]*\*{3,4}[\-\s]*\d{4}/g,            // +1 (555) ***-9984 (phone)
+                    /[A-Z]\*{4,10}(?:\s*\([0-9A]\))?/g,             // A****** (1) (IDs)
+                    /[A-Z][a-z]+\s+\*{4,}/g,                        // Apex ****** (orgs)
+                    /\d+\s+[A-Z][a-z]+\s+\*{4,}(?:\s+\*{2,})*/g,    // 742 Evergreen ****** (address)
+                    /[a-zA-Z0-9._-]*\*{3,}[a-zA-Z0-9._-]*/g,        // Generic *** patterns
+                ];
+
+                maskPatterns.forEach(regex => {
+                    text = text.replace(regex, match => {
+                        if (match.includes(HL_START)) return match;
+                        return `${HL_START}${match}${HL_END}`;
+                    });
+                });
+            }
+
+            // STEP 2: Smart format (converts to HTML with escapeHtml - markers survive)
+            text = smartFormatText(text);
+
+            // STEP 3: Convert markers to actual HTML spans
+            text = text.replace(/⟦HLSTART⟧/g, '<span class="highlight-entity">');
+            text = text.replace(/⟦HLEND⟧/g, '</span>');
+
+            outputText.innerHTML = text;
+            outputTab.style.display = 'block';
+
+            // Audit table
+            const auditTab = document.getElementById('auditTab');
+            const auditBody = document.getElementById('auditBody');
+            auditBody.innerHTML = '';
+
+            let transformLog = audit.transformLog;
+
+            // FALLBACK: Generate from aliasMap if transformLog doesn't exist
+            if (!transformLog && audit.aliasMap) {
+                transformLog = Object.entries(audit.aliasMap).map(([original, replacement]) => ({
+                    type: replacement.split('_')[0],
+                    originalValue: original,
+                    original: original,
+                    pseudonym: replacement,
+                    replacement: replacement,
+                    confidence: 0.9
+                }));
+            }
+
+            transformLog = transformLog || [];
+            transformLog.forEach(entry => {
+                const row = document.createElement('tr');
+                const badgeClass = getBadgeClass(entry.type);
+                const originalValue = entry.original || entry.originalValue || '';
+                const replacementValue = entry.replacement || entry.pseudonym || '';
+                const confidence = entry.confidence || 0.9;
+
+                row.innerHTML = `
+                    <td><span class="audit-badge ${badgeClass}">${entry.type}</span></td>
+                    <td style="font-family: var(--font-mono); font-size: 0.75rem;">${escapeHtml(originalValue)}</td>
+                    <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--terracotta-light);">${escapeHtml(replacementValue)}</td>
+                    <td>${Math.round(confidence * 100)}%</td>
+                `;
+                auditBody.appendChild(row);
+            });
+            auditTab.style.display = 'block';
+
+            // Raw JSON
+            const rawTab = document.getElementById('rawTab');
+            document.getElementById('rawJson').textContent = JSON.stringify(result, null, 2);
+            rawTab.style.display = 'block';
+
+            // Show output tab by default
+            showTab('output');
+        }
+
+        function getBadgeClass(type) {
+            if (type.includes('PERSON') || type.includes('NAME')) return 'badge-person';
+            if (type.includes('EMAIL')) return 'badge-email';
+            if (type.includes('PHONE')) return 'badge-phone';
+            if (type.includes('ADDRESS')) return 'badge-address';
+            if (type.includes('FINANCIAL') || type.includes('BANK') || type.includes('CARD')) return 'badge-financial';
+            return 'badge-default';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ========================================
+        // SMART FORMAT TEXT V4.0 - DOCX Table Detection
+        // Pre-processes to handle empty lines between table cells
+        // ========================================
+        function smartFormatText(text) {
+            if (!text) return '';
+
+            // PRE-PROCESS: Remove empty lines to normalize table structure
+            // DOCX extraction adds blank lines between each cell
+            const rawLines = text.split('\n');
+            const lines = [];
+            for (let i = 0; i < rawLines.length; i++) {
+                const trimmed = rawLines[i].trim();
+                // Keep non-empty lines, or keep single empty line (not consecutive)
+                if (trimmed || (lines.length > 0 && lines[lines.length - 1] !== '')) {
+                    lines.push(trimmed);
+                }
+            }
+
+            let html = '';
+            let i = 0;
+
+            while (i < lines.length) {
+                const trimmed = lines[i];
+
+                // Find next non-empty line
+                const getNextNonEmpty = (startIdx) => {
+                    for (let j = startIdx; j < lines.length; j++) {
+                        if (lines[j] && lines[j].trim()) return { text: lines[j].trim(), idx: j };
+                    }
+                    return { text: '', idx: -1 };
+                };
+
+                // Skip empty lines with minimal spacing
+                if (!trimmed) {
+                    i++;
+                    continue;
+                }
+
+                // === SOURCE: filename === pattern
+                if (trimmed.startsWith('=== SOURCE:') && trimmed.endsWith('===')) {
+                    const source = trimmed.replace(/^=== SOURCE:\s*/, '').replace(/\s*===\s*$/, '');
+                    html += `<div class="doc-source">📄 ${escapeHtml(source)}</div>`;
+                    i++;
+                    continue;
+                }
+
+                // SECTION headers
+                if (/^SECTION\s*\d*\s*[:：]/i.test(trimmed)) {
+                    html += `<div class="doc-heading">${escapeHtml(trimmed)}</div>`;
+                    i++;
+                    continue;
+                }
+
+                // Record/Patient patterns - Subheadings  
+                if (/^(Patient|Medical|Employee|Client|Customer|Record|Case|Bệnh nhân|病人)\s*(Record|Profile|File|記錄)?\s*#?\d*/i.test(trimmed)) {
+                    html += `<div class="doc-subheading">${escapeHtml(trimmed)}</div>`;
+                    i++;
+                    continue;
+                }
+
+                // Chinese section headers
+                if (/^第[一二三四五六七八九十\d]+部分[:：]/i.test(trimmed) || /^病人記錄\s*#?\d*/i.test(trimmed)) {
+                    html += `<div class="doc-heading">${escapeHtml(trimmed)}</div>`;
+                    i++;
+                    continue;
+                }
+
+                // === DOCX TABLE DETECTION ===
+                // Pattern: "Field" followed by "Value" (may have empty lines between)
+                const nextNonEmpty = getNextNonEmpty(i + 1);
+                if (/^(Field|欄位|Trường)$/i.test(trimmed) && /^(Value|內容|Giá trị)$/i.test(nextNonEmpty.text)) {
+                    // Skip header lines
+                    i = nextNonEmpty.idx + 1;
+
+                    // Collect field/value pairs
+                    const tableRows = [];
+                    while (i < lines.length) {
+                        // Skip empty lines
+                        while (i < lines.length && !lines[i]) i++;
+                        if (i >= lines.length) break;
+
+                        const fieldLine = lines[i];
+
+                        // Stop conditions
+                        if (!fieldLine || isHeading(fieldLine) || /^(Field|欄位|Trường)$/i.test(fieldLine)) {
+                            break;
+                        }
+
+                        // Get next non-empty as value
+                        const valueInfo = getNextNonEmpty(i + 1);
+                        const valueLine = valueInfo.text;
+
+                        // Check if this is likely a field/value pair
+                        if (isFieldLabel(fieldLine) && valueLine && !isHeading(valueLine) && !/^(Field|欄位|Trường)$/i.test(valueLine)) {
+                            tableRows.push({ field: fieldLine, value: valueLine });
+                            i = valueInfo.idx + 1;
+                        } else {
+                            // Not a pair - this might be paragraph text after table
+                            break;
+                        }
+                    }
+
+                    if (tableRows.length > 0) {
+                        html += renderTable(tableRows);
+                    }
+                    continue;
+                }
+
+                // History/Medical sections as subheadings
+                if (/^(Medical|Family|Social)\s*History[:：]?/i.test(trimmed) || /^(病歷|家族史|診斷)/i.test(trimmed)) {
+                    html += `<div class="doc-subheading">${escapeHtml(trimmed)}</div>`;
+                    i++;
+                    continue;
+                }
+
+                // ALL CAPS TITLE
+                if (trimmed.length > 5 && trimmed === trimmed.toUpperCase() && /^[A-Z\s\-\(\)]+$/.test(trimmed)) {
+                    html += `<div class="doc-heading">${escapeHtml(trimmed)}</div>`;
+                    i++;
+                    continue;
+                }
+
+                // TAB-SEPARATED pattern
+                if (trimmed.includes('\t')) {
+                    const tableRows = [];
+                    while (i < lines.length && lines[i] && lines[i].includes('\t')) {
+                        const parts = lines[i].split('\t').map(p => p.trim()).filter(p => p);
+                        if (parts.length >= 2 && !/^Field$/i.test(parts[0])) {
+                            tableRows.push({ field: parts[0], value: parts.slice(1).join(' ') });
+                        }
+                        i++;
+                    }
+                    if (tableRows.length > 0) {
+                        html += renderTable(tableRows);
+                    }
+                    continue;
+                }
+
+                // COLON SEPARATED inline: "Field: Value"
+                const colonMatch = trimmed.match(/^([A-Za-z\s\u4e00-\u9fff\u00C0-\u1EF9]+)[:：]\s*(.+)$/);
+                if (colonMatch && colonMatch[1].length < 35 && colonMatch[2].length > 0 && !isHeading(trimmed)) {
+                    // Collect consecutive colon-separated lines as table
+                    const tableRows = [];
+                    while (i < lines.length) {
+                        const currentLine = lines[i];
+                        if (!currentLine) { i++; continue; }
+                        const match = currentLine.match(/^([A-Za-z\s\u4e00-\u9fff\u00C0-\u1EF9]+)[:：]\s*(.+)$/);
+                        if (match && match[1].length < 35 && !isHeading(currentLine)) {
+                            tableRows.push({ field: match[1].trim(), value: match[2].trim() });
+                            i++;
+                        } else {
+                            break;
+                        }
+                    }
+                    if (tableRows.length > 0) {
+                        html += renderTable(tableRows);
+                    }
+                    continue;
+                }
+
+                // Field label followed by value on next line (non-table context) - REMOVED, handled by new table detection
+
+                // List items
+                if (/^[-•]\s/.test(trimmed)) {
+                    html += `<div class="doc-list-item">${escapeHtml(trimmed.replace(/^[-•]\s*/, ''))}</div>`;
+                    i++;
+                    continue;
+                }
+
+                // Regular paragraph
+                html += `<div class="doc-paragraph">${escapeHtml(trimmed)}</div>`;
+                i++;
+            }
+
+            return html;
+        }
+
+        // Check if line is a heading pattern
+        function isHeading(text) {
+            if (!text) return false;
+            const t = text.trim();
+            return /^SECTION\s*\d*\s*[:：]/i.test(t) ||
+                /^(Patient|Medical|Employee|Client|Customer|Record|Case|Bệnh nhân|病人)\s*(Record|Profile|File|記錄)?\s*#?\d*/i.test(t) ||
+                /^(Medical|Family|Social)\s*History/i.test(t) ||
+                /^第[一二三四五六七八九十\d]+部分/i.test(t) ||
+                (t.length > 5 && t === t.toUpperCase() && /^[A-Z\s\-\(\)]+$/.test(t));
+        }
+
+        function isFieldLabel(text) {
+            if (!text) return false;
+            const trimmed = text.trim();
+
+            // Exact matches for common field labels
+            const exactFields = [
+                'field', 'value', 'name', 'patient name', 'chinese name',
+                'date of birth', 'age', 'hkid', 'passport no', 'passport no.',
+                'mobile phone', 'email', 'home address', 'address',
+                'medical record no', 'medical record no.', 'attending physician',
+                'emergency contact', 'spouse', 'gender', 'occupation',
+                // Chinese
+                '姓名', '中文姓名', '英文姓名', '出生日期', '年齡', '身份證',
+                '護照號碼', '電話', '手機', '電郵', '地址', '住址',
+                '病歷號碼', '主診醫生', '緊急聯絡人', '配偶'
+            ];
+
+            if (exactFields.some(f => trimmed.toLowerCase() === f.toLowerCase())) {
+                return true;
+            }
+
+            // Common field label patterns
+            const fieldPatterns = [
+                /^(patient\s*)?name$/i,
+                /^(date\s*of\s*)?birth$/i,
+                /^(mobile\s*)?phone$/i,
+                /^email$/i,
+                /^address$/i,
+                /^(home\s*)?address$/i,
+                /^age$/i,
+                /^(hk)?id$/i,
+                /^hkid$/i,
+                /^passport(\s*no\.?)?$/i,
+                /^field$/i,
+                /^value$/i,
+                /^gender$/i,
+                /^occupation$/i,
+                /^employer$/i,
+                /^bank\s*account$/i,
+                /^credit\s*card$/i,
+                /^medical\s*record$/i,
+                /^emergency\s*contact$/i,
+                /^spouse(\s*name)?$/i
+            ];
+
+            return fieldPatterns.some(p => p.test(trimmed)) ||
+                (trimmed.length < 25 && /^[A-Za-z\s\.]+$/.test(trimmed) && !trimmed.includes('  '));
+        }
+
+        function renderTable(rows) {
+            if (rows.length === 0) return '';
+
+            let html = '<div class="doc-table">';
+            for (const row of rows) {
+                html += `<div class="doc-row">
+                    <div class="doc-field">${escapeHtml(row.field)}</div>
+                    <div class="doc-value">${escapeHtml(row.value)}</div>
+                </div>`;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        // ========================================
+        // TABS
+        // ========================================
+        resultTabs.querySelectorAll('.result-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                showTab(tab.dataset.tab);
+            });
+        });
+
+        function showTab(tabName) {
+            resultTabs.querySelectorAll('.result-tab').forEach(t => t.classList.remove('active'));
+            resultTabs.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            document.getElementById('outputTab').style.display = tabName === 'output' ? 'block' : 'none';
+            document.getElementById('auditTab').style.display = tabName === 'audit' ? 'block' : 'none';
+            document.getElementById('rawTab').style.display = tabName === 'raw' ? 'block' : 'none';
+        }
+
+        // ========================================
+        // COPY FUNCTIONS
+        // ========================================
+        function copyOutput() {
+            const text = rawResult?.desensitizedText || '';
+            navigator.clipboard.writeText(text);
+            log('Output copied to clipboard', 'success');
+        }
+
+        function copyRaw() {
+            navigator.clipboard.writeText(JSON.stringify(rawResult, null, 2));
+            log('Raw JSON copied to clipboard', 'success');
+        }
+
+        // ========================================
+        // DOWNLOAD DOCX WITH FORMAT PRESERVATION
+        // ========================================
+        async function downloadDocx() {
+            if (!rawResult || !rawResult.desensitizedText) {
+                log('No result to download', 'error');
+                return;
+            }
+
+            log('Generating DOCX file...');
+
+            try {
+                const text = rawResult.desensitizedText;
+                const lines = text.split('\n');
+
+                // Create proper DOCX blob using JSZip
+                const blob = await createDocxBlob(lines);
+
+                // Download the file
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `desensitized_${Date.now()}.docx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                log('DOCX downloaded successfully', 'success');
+            } catch (error) {
+                log(`DOCX generation failed: ${error.message}`, 'error');
+            }
+        }
+
+        function escapeXml(text) {
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&apos;');
+        }
+
+        // Create proper DOCX using JSZip - V2 with formatting
+        async function createDocxBlob(lines) {
+            // Load JSZip dynamically if not loaded
+            if (typeof JSZip === 'undefined') {
+                await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+            }
+
+            const zip = new JSZip();
+
+            // Get masked values for highlighting
+            const maskedValues = new Set();
+
+            // Method 1: From aliasMap (works for ALL modes)
+            if (rawResult?.audit?.aliasMap) {
+                Object.values(rawResult.audit.aliasMap).forEach(v => maskedValues.add(v));
+            }
+            if (rawResult?.audit?.transformLog) {
+                rawResult.audit.transformLog.forEach(e => {
+                    if (e.replacement) maskedValues.add(e.replacement);
+                    if (e.pseudonym) maskedValues.add(e.pseudonym);
+                });
+            }
+
+            // Method 2: Find patterns in text for both modes
+            const fullText = rawResult?.desensitizedText || lines.join('\n');
+
+            // A. Pseudonymize mode patterns - Comprehensive TYPE_N matching
+            // Matches: PERSON_NAME_1, EMAIL_1, IP_ADDRESS_1, DATE_1, etc.
+            const pseudonymizeMatches = fullText.match(/\b[A-Z]+(?:_[A-Z]+)*_\d+\b/g) || [];
+            pseudonymizeMatches.forEach(m => maskedValues.add(m));
+
+            // B. Mask mode patterns
+            const maskPatterns = [
+                /[A-Z]\*{2,8}(?:\s+[A-Z]\*{1,8})*/g,         // M****** C**
+                /[a-zA-Z]\*{4,}@[\w.-]+\.\w+/g,               // m****@domain.com
+                /\d{4}\s+XXXX\s+XXXX\s+\d{4}/g,               // 4532 XXXX XXXX 3455
+                /\*{3}-\*{2}-\d{4}/g,                         // ***-**-1234
+                /\d+\.\d+\.\*{3}\.\*{3}/g,                    // 192.168.***.***
+                /[\+\d\s\(\)]*\*{3,4}[\-\s]*\d{4}/g,          // +1 (555) ***-9984
+                /[A-Z]\*{4,10}(?:\s*\([0-9A]\))?/g,           // A****** (1)
+                /[A-Z][a-z]+\s+\*{4,}/g,                      // Apex ******
+                /\d+\s+[A-Z][a-z]+\s+\*{4,}(?:\s+\*{2,})*/g,  // 742 Evergreen ******
+            ];
+            for (const pattern of maskPatterns) {
+                const matches = fullText.match(pattern) || [];
+                matches.forEach(m => maskedValues.add(m));
+            }
+
+            // C. [REDACTED] patterns
+            const redactedMatches = fullText.match(/\[REDACTED\]/g) || [];
+            redactedMatches.forEach(m => maskedValues.add(m));
+
+            console.log('=== DOCX Highlight Debug ===');
+            console.log('rawResult exists:', !!rawResult);
+            console.log('aliasMap values:', rawResult?.audit?.aliasMap ? Object.values(rawResult.audit.aliasMap) : 'none');
+            console.log('transformLog count:', rawResult?.audit?.transformLog?.length || 0);
+            console.log('Masked values found:', maskedValues.size, Array.from(maskedValues));
+            const sortedMasked = Array.from(maskedValues).sort((a, b) => b.length - a.length);
+            console.log('sortedMasked:', sortedMasked);
+
+            // [Content_Types].xml
+            zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>`);
+
+            // _rels/.rels
+            zip.folder('_rels').file('.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+
+            // word/_rels/document.xml.rels
+            zip.folder('word/_rels').file('document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`);
+
+            // word/styles.xml
+            zip.folder('word').file('styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Normal" w:default="1">
+    <w:name w:val="Normal"/>
+    <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="22"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:name w:val="Heading 1"/>
+    <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:b/><w:sz w:val="28"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2">
+    <w:name w:val="Heading 2"/>
+    <w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:b/><w:sz w:val="24"/></w:rPr>
+  </w:style>
+</w:styles>`);
+
+            // Helper: Create run with optional bold and highlighting
+            function createRun(text, options = {}) {
+                const { bold, highlight } = options;
+                let rPr = '';
+                if (bold || highlight) {
+                    rPr = '<w:rPr>';
+                    if (bold) rPr += '<w:b/>';
+                    if (highlight) rPr += '<w:highlight w:val="yellow"/>';
+                    rPr += '</w:rPr>';
+                }
+                return `<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
+            }
+
+            // Helper: Process line to split and format masked values
+            // FIX: Find earliest match in TEXT position, not first in sortedMasked order
+            function processLineWithMasked(text, baseBold = false) {
+                if (sortedMasked.length === 0) {
+                    return createRun(text, { bold: baseBold });
+                }
+
+                let result = '';
+                let remaining = text;
+
+                while (remaining.length > 0) {
+                    // Find the EARLIEST match in the remaining text
+                    let earliestIdx = -1;
+                    let earliestMasked = null;
+
+                    for (const masked of sortedMasked) {
+                        const idx = remaining.indexOf(masked);
+                        if (idx !== -1 && (earliestIdx === -1 || idx < earliestIdx)) {
+                            earliestIdx = idx;
+                            earliestMasked = masked;
+                        }
+                    }
+
+                    if (earliestMasked !== null) {
+                        // Text before masked value
+                        if (earliestIdx > 0) {
+                            result += createRun(remaining.substring(0, earliestIdx), { bold: baseBold });
+                        }
+                        // Masked value - bold and highlighted
+                        result += createRun(earliestMasked, { bold: true, highlight: true });
+                        remaining = remaining.substring(earliestIdx + earliestMasked.length);
+                    } else {
+                        // No more matches - output remaining text
+                        result += createRun(remaining, { bold: baseBold });
+                        break;
+                    }
+                }
+
+                return result;
+            }
+
+            // word/document.xml - Main content with paragraphs
+            const paragraphs = lines.map(line => {
+                const trimmed = line.trim();
+
+                // Empty line
+                if (!trimmed) {
+                    return '<w:p><w:pPr/></w:p>';
+                }
+
+                // Document title (first non-empty line that looks like a title)
+                if (/^(Test Document|Document|Report|Summary|CONFIDENTIAL)[:：]?\s*.*/i.test(trimmed) && !trimmed.includes('[')) {
+                    return `<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>${processLineWithMasked(trimmed, true)}</w:p>`;
+                }
+
+                // Numbered headings: "1. Client Information", "2. Project Details"
+                if (/^\d+\.\s+[A-Z]/.test(trimmed)) {
+                    return `<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr>${processLineWithMasked(trimmed, true)}</w:p>`;
+                }
+
+                // Bullet points
+                if (/^[•\-\*]\s/.test(trimmed)) {
+                    const bulletText = trimmed.replace(/^[•\-\*]\s*/, '');
+                    // Check for field label in bullet: "• Cardholder Name: [Name 4]"
+                    const colonMatch = bulletText.match(/^([^:：]+)[:：]\s*(.+)$/);
+                    if (colonMatch) {
+                        const label = colonMatch[1];
+                        const value = colonMatch[2];
+                        return `<w:p><w:pPr><w:ind w:left="720"/></w:pPr>${createRun('• ', {})}${createRun(label + ': ', { bold: true })}${processLineWithMasked(value, false)}</w:p>`;
+                    }
+                    return `<w:p><w:pPr><w:ind w:left="720"/></w:pPr>${createRun('• ', {})}${processLineWithMasked(bulletText, false)}</w:p>`;
+                }
+
+                // Field label lines: "Date: [date 1]", "Prepared By: [person 1]"
+                const colonMatch = trimmed.match(/^([A-Za-z\s]+)[:：]\s*(.+)$/);
+                if (colonMatch && colonMatch[1].length < 25) {
+                    const label = colonMatch[1];
+                    const value = colonMatch[2];
+                    return `<w:p>${createRun(label + ': ', { bold: true })}${processLineWithMasked(value, false)}</w:p>`;
+                }
+
+                // Regular paragraph
+                return `<w:p>${processLineWithMasked(trimmed, false)}</w:p>`;
+            }).join('\n');
+
+            zip.folder('word').file('document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${paragraphs}
+  </w:body>
+</w:document>`);
+
+            return await zip.generateAsync({ type: 'blob' });
+        }
+
+        function loadScript(url) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        // ========================================
+        // INIT
+        // ========================================
+        log('Data Desensitization Tool initialized');
+        log(`API Endpoint: ${API_BASE}`);
+    </script>
+</body>
+
+</html>

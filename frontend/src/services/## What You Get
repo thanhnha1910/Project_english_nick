@@ -1,0 +1,72 @@
+## What You Get
+- Claude Opus 4.5, Sonnet 4.5 and Gemini 3 Pro/Flash via Google OAuth
+- Multi-account support — add multiple Google accounts, auto-rotates when rate-limited
+- Dual quota system — access both Antigravity and Gemini CLI quotas from one plugin
+- Thinking models — extended thinking for Claude and Gemini 3 with configurable budgets
+- Google Search grounding — enable web search for Gemini models (auto or always-on)
+- Auto-recovery — handles session errors and tool failures automatically
+- Plugin compatible — works alongside other OpenCode plugins (oh-my-opencode, dcp, etc.)
+
+## Installation
+Option A: Let an LLM do it
+Paste this into any LLM agent (Claude Code, OpenCode, Cursor, etc.):
+
+```
+Install the opencode-antigravity-auth plugin and add the Antigravity model definitions to ~/.config/opencode/opencode.json by following: https://raw.githubusercontent.com/NoeFabris/opencode-antigravity-auth/dev/README.md
+```
+
+
+```
+Install the opencode-antigravity-auth plugin and add the Antigravity model definitions to ~/.config/opencode/opencode.json by following: https://raw.githubusercontent.com/NoeFabris/opencode-antigravity-auth/dev/README.md
+```
+
+Option B: Manual setup
+1. 
+Add the plugin to ~/.config/opencode/opencode.json:
+{
+  "plugin": ["opencode-antigravity-auth@latest"]
+}
+
+Want bleeding-edge features? Use opencode-antigravity-auth@beta instead.
+
+
+2. 
+Login with your Google account:
+opencode auth login
+
+3. 
+Add models — copy the [full configuration](https://github.com/NoeFabris/opencode-antigravity-auth#models) below
+
+4. 
+Use it:
+opencode run "Hello" --model=google/antigravity-claude-sonnet-4-5-thinking --variant=max
+
+Add the plugin to ~/.config/opencode/opencode.json:
+
+```
+~/.config/opencode/opencode.json
+```
+
+
+```
+{ "plugin": ["opencode-antigravity-auth@latest"] }
+```
+
+Want bleeding-edge features? Use opencode-antigravity-auth@beta instead.
+
+```
+opencode-antigravity-auth@beta
+```
+
+Login with your Google account:
+
+```
+opencode auth login
+```
+
+Add models — copy the [full configuration](https://github.com/NoeFabris/opencode-antigravity-auth#models) below
+Use it:
+
+```
+opencode run "Hello" --model=google/antigravity-claude-sonnet-4-5-thinking --variant=max
+```

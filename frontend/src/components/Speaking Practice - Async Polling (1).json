@@ -1,0 +1,349 @@
+{
+  "name": "Speaking Practice - Async Polling",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "speaking-start",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "a5305310-2ce1-4760-bbe2-117b840a8063",
+      "name": "Webhook Start",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -480,
+        160
+      ],
+      "webhookId": "speaking-start",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize async job for speaking practice\nconst inputData = $input.item.json.body || $input.item.json;\nconst audioBase64 = inputData.audio;\nconst referenceText = inputData.referenceText || '';\nconst language = inputData.language || 'en';\n\nif (!audioBase64) {\n  throw new Error('No audio provided. Please include audio (base64) in request body.');\n}\n\nconst jobId = `speaking-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;\nconst staticData = $getWorkflowStaticData('global');\nstaticData[jobId] = { \n  status: 'processing', \n  createdAt: new Date().toISOString(),\n  referenceText,\n  language\n};\n\nreturn [{ \n  json: { \n    jobId, \n    audioBase64,\n    referenceText,\n    language\n  } \n}];"
+      },
+      "id": "1f941ab4-d43d-4f84-991d-7f7d5ed163c6",
+      "name": "Init Job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "d631e4b2-5dcd-4dd5-bd12-2a6031dab342",
+      "name": "Respond Start",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "audioFile"
+            },
+            {
+              "name": "model",
+              "value": "whisper-large-v3"
+            },
+            {
+              "name": "response_format",
+              "value": "verbose_json"
+            },
+            {
+              "name": "language",
+              "value": "={{ $json.language }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "fe63c4c0-a644-4f11-8171-962bdcc7ef8c",
+      "name": "Groq Whisper STT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        160
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PVRx9vvcRFKDyWg8",
+          "name": "grop"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare audio file from base64 for Groq API\nconst inputData = $input.item.json;\nconst audioBase64 = inputData.audioBase64;\nconst jobId = inputData.jobId;\nconst referenceText = inputData.referenceText;\nconst language = inputData.language;\n\n// Remove data URL prefix if present\nlet cleanBase64 = audioBase64;\nif (audioBase64.includes(',')) {\n  cleanBase64 = audioBase64.split(',')[1];\n}\n\n// Convert base64 to binary buffer\nconst binaryData = Buffer.from(cleanBase64, 'base64');\n\nreturn [{\n  json: {\n    jobId,\n    referenceText,\n    language\n  },\n  binary: {\n    audioFile: {\n      data: binaryData.toString('base64'),\n      mimeType: 'audio/webm',\n      fileName: 'recording.webm'\n    }\n  }\n}];"
+      },
+      "id": "3e9e8b0e-9252-449d-85b4-7f4feb132060",
+      "name": "Prepare Audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract transcript and prepare for LLM analysis\nconst groqResponse = $input.item.json;\nconst prepData = $('Prepare Audio').first().json;\nconst jobId = prepData.jobId;\nconst referenceText = prepData.referenceText;\nconst language = prepData.language;\n\nconst transcript = groqResponse.text || '';\nconst segments = groqResponse.segments || [];\nconst duration = groqResponse.duration || 0;\n\n// Calculate word count and speaking rate\nconst wordCount = transcript.split(/\\s+/).filter(w => w.length > 0).length;\nconst speakingRate = duration > 0 ? Math.round((wordCount / duration) * 60) : 0; // words per minute\n\nreturn [{\n  json: {\n    jobId,\n    transcript,\n    referenceText,\n    language,\n    metrics: {\n      duration: Math.round(duration * 10) / 10,\n      wordCount,\n      speakingRate,\n      segmentCount: segments.length\n    },\n    segments\n  }\n}];"
+      },
+      "id": "335e4783-e296-4321-9e3a-aca9a549a9ad",
+      "name": "Process Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://106.104.117.24:8434/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gemma3:27b\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a friendly and practical English teacher helping a beginner/intermediate learner. Your goal is to give them SHORT, EFFECTIVE, and EASY-TO-UNDERSTAND feedback in Vietnamese. Don't be too academic. Focus on giving them a natural, better way to say what they meant.\\n\\nKeep the EXACT format below:\\n\\n**OVERALL SCORE**: [0-100]\\n\\n**NHẬN XÉT (TEACHER'S FEEDBACK)**\\n[1-2 short sentences in Vietnamese about their pronunciation or grammar. Be encouraging! Point out the main mistake if any.]\\n\\n**CÁCH NÓI HAY HƠN (BETTER WAYS TO SAY IT)**\\n- [Sample sentence 1 in English] (Nghĩa tiếng Việt ngắn gọn)\\n- [Sample sentence 2 in English, optional] (Nghĩa tiếng Việt ngắn gọn)\\n\\n**LỜI KHUYÊN (QUICK TIP)**\\n[1 short sentence in Vietnamese on how to practice or remember this]\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Please analyze this spoken English transcript:\\n\\n**Student said:** \\\"{{ $json.transcript }}\\\"\\n\\n**Reference text (if provided):** \\\"{{ $json.referenceText || 'No reference provided - analyze as free speech' }}\\\"\\n\\n**Speaking metrics:**\\n- Duration: {{ $json.metrics.duration }} seconds\\n- Word count: {{ $json.metrics.wordCount }}\\n- Speaking rate: {{ $json.metrics.speakingRate }} words/minute (ideal: 120-150 wpm)\\n\\nProvide brief, effective, and encouraging feedback in Vietnamese to help this student improve.\"\n    }\n  ],\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0.7,\n    \"num_predict\": 2000\n  }\n}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "53c9a44a-ac40-4f75-b1be-a4898c8adeb5",
+      "name": "LLM Analyze Speaking",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        160
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Structure the final response\nconst llmResponse = $input.item.json;\nconst transcriptData = $('Process Transcript').first().json;\nconst jobId = transcriptData.jobId;\n\nconst feedback = llmResponse.message?.content || llmResponse.response || 'Analysis failed';\n\n// Try to extract overall score from feedback\nlet overallScore = 0;\nconst scoreMatch = feedback.match(/\\*\\*OVERALL SCORE\\*\\*:\\s*(\\d+)/i);\nif (scoreMatch) {\n  overallScore = parseInt(scoreMatch[1], 10);\n}\n\nconst result = {\n  success: true,\n  timestamp: new Date().toISOString(),\n  jobId,\n  transcript: transcriptData.transcript,\n  referenceText: transcriptData.referenceText,\n  metrics: transcriptData.metrics,\n  analysis: {\n    overallScore,\n    feedback,\n    model: 'gemma3:27b'\n  }\n};\n\n// Save to static data\nconst staticData = $getWorkflowStaticData('global');\nstaticData[jobId] = {\n  status: 'completed',\n  result,\n  completedAt: new Date().toISOString()\n};\n\nreturn [{ json: { ok: true, jobId } }];"
+      },
+      "id": "fcca4dfe-25a9-4ea6-a8b2-f51673891b6e",
+      "name": "Save Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "path": "speaking-status",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "a04bb9f3-00b6-41aa-b934-67c513a0beb7",
+      "name": "Webhook Status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -480,
+        448
+      ],
+      "webhookId": "speaking-status",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check job status and return result if completed\nconst input = $input.item.json;\nconst jobId = (input.query && input.query.jobId) || (input.body && input.body.jobId) || input.jobId;\n\nif (!jobId) {\n  return [{ json: { success: true, status: 'alive', ping: true, timestamp: new Date().toISOString() } }];\n}\n\nconst staticData = $getWorkflowStaticData('global');\nconst entry = staticData[jobId];\n\nif (!entry) {\n  return [{ json: { success: false, status: 'not_found', jobId, message: 'Job not found' } }];\n}\n\nif (entry.status === 'completed') {\n  // Clean up old jobs (older than 10 minutes)\n  const tenMinutesAgo = Date.now() - 10 * 60 * 1000;\n  for (const key in staticData) {\n    if (staticData[key].completedAt) {\n      const completedTime = new Date(staticData[key].completedAt).getTime();\n      if (completedTime < tenMinutesAgo) {\n        delete staticData[key];\n      }\n    }\n  }\n  \n  return [{ json: { success: true, status: 'completed', jobId, result: entry.result } }];\n}\n\nreturn [{ json: { success: true, status: 'processing', jobId, createdAt: entry.createdAt } }];"
+      },
+      "id": "30b254a9-09ea-45f8-9a95-251f5a38fc38",
+      "name": "Get Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store, no-cache, must-revalidate"
+              }
+            ]
+          }
+        }
+      },
+      "id": "6d073047-732b-4598-9c88-a5a932655ff1",
+      "name": "Respond Status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        448
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Start": {
+      "main": [
+        [
+          {
+            "node": "Init Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Job": {
+      "main": [
+        [
+          {
+            "node": "Prepare Audio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond Start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Audio": {
+      "main": [
+        [
+          {
+            "node": "Groq Whisper STT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Whisper STT": {
+      "main": [
+        [
+          {
+            "node": "Process Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Transcript": {
+      "main": [
+        [
+          {
+            "node": "LLM Analyze Speaking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Analyze Speaking": {
+      "main": [
+        [
+          {
+            "node": "Save Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Status": {
+      "main": [
+        [
+          {
+            "node": "Get Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Status": {
+      "main": [
+        [
+          {
+            "node": "Respond Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "a22bb4a7-b7ae-4516-88fd-131d428c9400",
+  "meta": {
+    "instanceId": "7cbcc4adf912a2f3f05c6610dc356ed5371442f57496230d911b4916e255a0cb"
+  },
+  "id": "9UWvzmqC8es6gHlU",
+  "tags": []
+}

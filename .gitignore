@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+backend/venv/
+backend/*.db
+backend/static/audio/*
+backend/static/recordings/*
+backend/frontend_dist/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
