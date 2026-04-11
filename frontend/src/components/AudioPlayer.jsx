@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { STATIC_BASE_URL } from '../services/api';
 
 // Play Icon
 const PlayIcon = () => (
@@ -43,7 +44,7 @@ export default function AudioPlayer({ audio, onEnded }) {
 
     useEffect(() => {
         if (audio && audioRef.current) {
-            audioRef.current.src = `http://localhost:8000/${audio.file_path}`;
+            audioRef.current.src = `${STATIC_BASE_URL}/${audio.file_path}`;
             audioRef.current.load();
             setIsPlaying(false);
             setCurrentTime(0);

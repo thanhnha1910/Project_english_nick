@@ -1,10 +1,12 @@
 import axios from 'axios';
 
 // Auto-detect: production (same origin) vs local dev (separate backend)
-const isDev = window.location.port === '5173';
-const API_BASE_URL = isDev
-    ? `http://${window.location.hostname}:8000/api`
-    : `${window.location.origin}/api`;
+export const isDev = window.location.port === '5173';
+export const STATIC_BASE_URL = isDev
+    ? `http://${window.location.hostname}:8000`
+    : window.location.origin;
+
+export const API_BASE_URL = `${STATIC_BASE_URL}/api`;
 
 const api = axios.create({
     baseURL: API_BASE_URL,
