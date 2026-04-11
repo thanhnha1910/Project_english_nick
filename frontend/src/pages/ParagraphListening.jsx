@@ -103,20 +103,9 @@ export default function ParagraphListening() {
                         </h2>
                     </div>
 
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: '300px 1fr',
-                        gap: 24,
-                        alignItems: 'start'
-                    }}>
+                    <div className="stage-learning-layout">
                         {/* Audio list */}
-                        <div className="card" style={{
-                            padding: 0,
-                            maxHeight: 'calc(100vh - 280px)',
-                            overflow: 'hidden',
-                            display: 'flex',
-                            flexDirection: 'column'
-                        }}>
+                        <div className="card stage-audio-sidebar">
                             <div style={{
                                 padding: '16px 20px',
                                 borderBottom: '1px solid var(--bg-hover)',
@@ -179,7 +168,7 @@ export default function ParagraphListening() {
                         </div>
 
                         {/* Player Area focused on paragraph listening */}
-                        <div style={{ position: 'sticky', top: 100 }}>
+                        <div className="stage-player-container">
                             {selectedAudio ? (
                                 <>
                                     <AudioPlayer

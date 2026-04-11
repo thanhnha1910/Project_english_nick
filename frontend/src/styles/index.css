@@ -2437,7 +2437,7 @@ h3 {
 .vm-match-tile {
   padding: 20px 16px;
   border-radius: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.25); /* make border highly visible */
   background: var(--bg-card);
   color: var(--text);
   font-size: 0.95rem;
@@ -2830,10 +2830,6 @@ h3 {
   .vm-import-grid {
     grid-template-columns: 1fr;
   }
-
-  .vm-match-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 600px) {
@@ -2860,5 +2856,15 @@ h3 {
   .vm-tab {
     padding: 8px 12px;
     font-size: 0.78rem;
+  }
+
+  .vm-match-grid {
+    gap: 6px;
+  }
+  
+  .vm-match-tile {
+    padding: 10px 4px;
+    font-size: 0.75rem;
+    border-radius: 8px;
   }
 }
