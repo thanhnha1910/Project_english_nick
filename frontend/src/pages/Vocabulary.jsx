@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     importVocabulary, getVocabulary, deleteWord, updateWord,
-    getStages, createStage, reviewWordBatch, getDueWords, getVocabStats
+    getStages, createStage, updateStage, deleteStage, reviewWordBatch, getDueWords, getVocabStats
 } from '../services/api';
 
 // ============ CONSTANTS ============
@@ -104,6 +104,31 @@ export default function Vocabulary() {
             setSelectedStage(res.data.id);
             setNewStageName('');
             setIsCreatingStage(false);
+        } catch (err) { alert('Failed: ' + err.message); }
+    };
+
+    const handleEditStage = async () => {
+        if (!selectedStage) return;
+        const currentStage = stages.find(s => s.id == selectedStage);
+        if (!currentStage) return;
+        const newName = prompt('Nhập tên mới cho bộ từ này:', currentStage.name);
+        if (!newName || newName.trim() === currentStage.name) return;
+        
+        try {
+            const res = await updateStage(selectedStage, { name: newName.trim(), type: 'vocabulary' });
+            setStages(prev => prev.map(s => s.id == selectedStage ? res.data : s));
+        } catch (err) { alert('Failed: ' + err.message); }
+    };
+
+    const handleDeleteStage = async () => {
+        if (!selectedStage) return;
+        const currentStage = stages.find(s => s.id == selectedStage);
+        if (!confirm(`Bạn có chắc muốn xóa bộ từ "${currentStage?.name}" không? Toàn bộ từ vựng bên trong sẽ không bị xóa khỏi Data gốc, nhưng bộ này sẽ mất.`)) return;
+        
+        try {
+            await deleteStage(selectedStage);
+            setStages(prev => prev.filter(s => s.id != selectedStage));
+            setSelectedStage('');
         } catch (err) { alert('Failed: ' + err.message); }
     };
 
@@ -373,13 +398,19 @@ export default function Vocabulary() {
                             {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>
-                    <button className="vm-btn-circle" onClick={() => { setIsCreatingStage(!isCreatingStage); setNewStageName(new Date().toLocaleDateString('vi-VN')); }} title="New Collection">+</button>
+                    {selectedStage && (
+                        <>
+                            <button className="vm-btn-circle" style={{ background: 'transparent', color: 'var(--text-muted)' }} onClick={handleEditStage} title="Rename Collection">✏️</button>
+                            <button className="vm-btn-circle" style={{ background: 'transparent', color: 'var(--text-muted)' }} onClick={handleDeleteStage} title="Delete Collection">🗑️</button>
+                        </>
+                    )}
+                    <button className="vm-btn-circle" onClick={() => { setIsCreatingStage(!isCreatingStage); setNewStageName(''); }} title="New Collection">+</button>
 
                     {isCreatingStage && (
                         <div className="vm-create-popup fade-in">
                             <h3>📅 New Collection</h3>
                             <div className="vm-create-row">
-                                <input value={newStageName} onChange={e => setNewStageName(e.target.value)} placeholder="Collection name" />
+                                <input value={newStageName} onChange={e => setNewStageName(e.target.value)} placeholder="Tên bài học (VD: Bài 1)..." autoFocus />
                                 <button className="vm-btn-primary" onClick={handleCreateStage}>Create</button>
                                 <button className="vm-btn-ghost" onClick={() => setIsCreatingStage(false)}>✕</button>
                             </div>
