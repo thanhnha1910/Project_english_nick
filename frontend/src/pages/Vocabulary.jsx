@@ -176,6 +176,10 @@ export default function Vocabulary() {
         if (targetMode === 'matching') {
             initMatchingGame(shuffled.slice(0, 6));
         }
+        // Auto-speak first word for flashcard mode
+        if (targetMode === 'flashcards' && shuffled.length > 0) {
+            setTimeout(() => speakWord(shuffled[0].text), 400);
+        }
     };
 
     const startDueReview = () => {
@@ -273,8 +277,11 @@ export default function Vocabulary() {
         if (sessionIndex >= sessionWords.length - 1) {
             finishSession(newResults);
         } else {
-            setSessionIndex(prev => prev + 1);
+            const nextIndex = sessionIndex + 1;
+            setSessionIndex(nextIndex);
             setIsFlipped(false);
+            // Auto-speak the next word
+            setTimeout(() => speakWord(sessionWords[nextIndex].text), 300);
         }
     };
 
@@ -630,7 +637,16 @@ export default function Vocabulary() {
                             </div>
                             <p className="vm-progress-text">{sessionIndex + 1} / {sessionWords.length}</p>
 
-                            <div className="vm-card-wrapper" onClick={() => setIsFlipped(!isFlipped)}>
+                            <div className="vm-card-wrapper" onClick={() => {
+                                const next = !isFlipped;
+                                setIsFlipped(next);
+                                // Auto-speak: front→back = read meaning, back→front = read word
+                                if (next) {
+                                    speakWord(sessionWords[sessionIndex].meaning);
+                                } else {
+                                    speakWord(sessionWords[sessionIndex].text);
+                                }
+                            }}>
                                 <div className={`vm-card ${isFlipped ? 'flipped' : ''}`}>
                                     {/* FRONT */}
                                     <div className="vm-card-face vm-card-front">
