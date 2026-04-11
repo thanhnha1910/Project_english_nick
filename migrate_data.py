@@ -62,26 +62,27 @@ def migrate_table(table):
         print(f"  ⏭  {table}: empty, skipping")
         return 0
     
-    # Create INSERT query with ON CONFLICT DO NOTHING
-    cols_str = ', '.join(columns)
+    # Quote column names for PostgreSQL reserved words
+    cols_str = ', '.join([f'"{c}"' for c in columns])
     placeholders = ', '.join(['%s'] * len(columns))
     
-    # Clear existing data
-    pg_cursor.execute(f"DELETE FROM {table}")
+    # TRUNCATE table first (clears ALL data, resets state)
+    pg_cursor.execute(f'TRUNCATE TABLE "{table}" CASCADE')
+    pg_conn.commit()
     
-    # Insert rows
-    query = f"INSERT INTO {table} ({cols_str}) VALUES ({placeholders})"
+    # Insert all rows
+    query = f'INSERT INTO "{table}" ({cols_str}) VALUES ({placeholders})'
     inserted = 0
     for row in rows:
         try:
             pg_cursor.execute(query, row)
+            pg_conn.commit()
             inserted += 1
         except Exception as e:
             print(f"  ⚠️  Skip row in {table}: {e}")
             pg_conn.rollback()
             continue
     
-    pg_conn.commit()
     print(f"  ✅ {table}: {inserted}/{len(rows)} rows migrated")
     return inserted
 
