@@ -8,7 +8,7 @@ from schemas import StageCreate, StageResponse
 router = APIRouter(prefix="/api/stages", tags=["stages"])
 
 
-@router.get("/", response_model=List[StageResponse])
+@router.get("", response_model=List[StageResponse])
 def get_all_stages(type: Optional[str] = None, db: Session = Depends(get_db)):
     """Lấy tất cả giai đoạn học, có thể lọc theo type"""
     query = db.query(Stage)
@@ -28,7 +28,7 @@ def get_stage(stage_id: int, db: Session = Depends(get_db)):
     return stage
 
 
-@router.post("/", response_model=StageResponse)
+@router.post("", response_model=StageResponse)
 def create_stage(stage: StageCreate, db: Session = Depends(get_db)):
     """Tạo giai đoạn mới"""
     db_stage = Stage(**stage.model_dump())

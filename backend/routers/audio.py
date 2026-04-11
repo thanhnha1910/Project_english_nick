@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/audios", tags=["audios"])
 AUDIO_DIR = "static/audio"
 
 
-@router.get("/", response_model=List[AudioResponse])
+@router.get("", response_model=List[AudioResponse])
 def get_all_audios(
     skip: int = 0,
     limit: int = 100,
@@ -101,7 +101,7 @@ def get_shuffled_transcript(audio_id: int, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/", response_model=AudioResponse)
+@router.post("", response_model=AudioResponse)
 async def upload_audio(
     title: str = Form(...),
     transcript: Optional[str] = Form(None),
