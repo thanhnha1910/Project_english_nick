@@ -17,7 +17,7 @@ app = FastAPI(
 # CORS - cho phép frontend kết nối
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Trong production nên giới hạn
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,24 +28,11 @@ os.makedirs("static/audio", exist_ok=True)
 os.makedirs("static/recordings", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Đăng ký routers
+# Đăng ký routers (MUST be before catch-all)
 app.include_router(audio.router)
 app.include_router(stages.router)
 app.include_router(speaking.router)
 app.include_router(vocabulary.router)
-
-# Serve frontend build (for production on Render)
-FRONTEND_BUILD = os.path.join(os.path.dirname(__file__), "frontend_dist")
-if os.path.exists(FRONTEND_BUILD):
-    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_BUILD, "assets")), name="frontend_assets")
-
-    @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
-        """Serve React app for all non-API routes"""
-        file_path = os.path.join(FRONTEND_BUILD, full_path)
-        if os.path.isfile(file_path):
-            return FileResponse(file_path)
-        return FileResponse(os.path.join(FRONTEND_BUILD, "index.html"))
 
 
 @app.on_event("startup")
@@ -58,6 +45,24 @@ def startup_event():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+# Serve frontend build (for production on Render)
+# This MUST be LAST — catch-all route
+FRONTEND_BUILD = os.path.join(os.path.dirname(__file__), "frontend_dist")
+if os.path.exists(FRONTEND_BUILD):
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_BUILD, "assets")), name="frontend_assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """Serve React app for all non-API routes"""
+        # Never serve index.html for API routes
+        if full_path.startswith("api/"):
+            return {"error": "Not found"}, 404
+        file_path = os.path.join(FRONTEND_BUILD, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(FRONTEND_BUILD, "index.html"))
 
 
 if __name__ == "__main__":

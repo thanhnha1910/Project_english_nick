@@ -242,20 +242,9 @@ export default function StageLearning() {
                     </div>
 
 
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: '300px 1fr',
-                        gap: 24,
-                        alignItems: 'start'
-                    }}>
+                    <div className="stage-learning-layout">
                         {/* Audio list - SCROLLABLE SIDEBAR */}
-                        <div className="card" style={{
-                            padding: 0,
-                            maxHeight: 'calc(100vh - 280px)',
-                            overflow: 'hidden',
-                            display: 'flex',
-                            flexDirection: 'column'
-                        }}>
+                        <div className="card stage-audio-sidebar">
                             <div style={{
                                 padding: '16px 20px',
                                 borderBottom: '1px solid var(--bg-hover)',

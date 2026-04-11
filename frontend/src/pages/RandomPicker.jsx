@@ -161,9 +161,9 @@ export default function RandomPicker() {
     };
 
     return (
-        <div className="page fade-in" style={{ display: 'flex', gap: '24px', height: 'calc(100vh - 100px)' }}>
+        <div className="page fade-in picker-layout">
             {/* Sidebar / Settings */}
-            <div className="card" style={{ width: '320px', display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto', borderRight: '1px solid var(--bg-hover)' }}>
+            <div className="card picker-sidebar">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
                     <div style={{ fontSize: '2rem' }}>⚙️</div>
                     <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Cài đặt</h2>
@@ -296,17 +296,7 @@ export default function RandomPicker() {
             </div>
 
             {/* Main Display Area */}
-            <div className="card" style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                overflow: 'hidden',
-                background: 'var(--bg-dark)',
-                border: '2px dashed var(--bg-hover)'
-            }}>
+            <div className="card picker-main">
 
                 {/* Stats / Timer Header */}
                 <div style={{ position: 'absolute', top: '32px', left: '32px', right: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
