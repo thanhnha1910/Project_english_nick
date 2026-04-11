@@ -393,6 +393,33 @@ h3 {
   border: 2px dashed var(--bg-hover);
 }
 
+.picker-actions {
+  position: absolute;
+  bottom: 40px;
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  width: 100%;
+}
+
+.picker-btn-primary {
+  padding: 20px 60px;
+  font-size: 1.8rem;
+  font-weight: bold;
+  border-radius: 50px;
+  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.picker-btn-accent {
+  padding: 20px 40px;
+  font-size: 1.5rem;
+  border-radius: 50px;
+}
+
 @media (max-width: 900px) {
   .picker-layout {
     flex-direction: column;
@@ -404,6 +431,22 @@ h3 {
     border-right: none;
     border-bottom: 1px solid var(--bg-hover);
     height: 400px; /* Fixed height so it doesn't take up the whole screen */
+  }
+
+  .picker-actions {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 0 16px;
+  }
+
+  .picker-btn-primary {
+    padding: 16px 40px;
+    font-size: 1.4rem;
+  }
+
+  .picker-btn-accent {
+    padding: 16px 24px;
+    font-size: 1.2rem;
   }
 }
 .page-header {

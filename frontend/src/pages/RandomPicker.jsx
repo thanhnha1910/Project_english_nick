@@ -373,36 +373,22 @@ export default function RandomPicker() {
                 </div>
 
                 {/* Actions */}
-                <div style={{ position: 'absolute', bottom: '40px', display: 'flex', gap: '20px' }}>
+                <div className="picker-actions">
                     <button
-                        className="btn btn-primary"
+                        className="btn btn-primary picker-btn-primary"
                         onClick={pickRandom}
                         disabled={(!isSessionActive && items.length === 0) || (isSessionActive && timeLeft === 0)}
                         style={{
-                            padding: '20px 60px',
-                            fontSize: '1.8rem',
-                            fontWeight: 'bold',
-                            borderRadius: '50px',
-                            boxShadow: '0 10px 30px rgba(99, 102, 241, 0.4)',
-                            transition: 'all 0.2s',
                             transform: ((isSessionActive && timeLeft === 0)) ? 'scale(0.95)' : 'scale(1)',
                             opacity: ((isSessionActive && timeLeft === 0) || (items.length === 0 && !isSessionActive)) ? 0.5 : 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px'
                         }}
                     >
                         🎲 RERUN
                     </button>
                     {!isSessionActive && items.length > 0 && currentItem === null && (
                         <button
-                            className="btn btn-accent"
+                            className="btn btn-accent picker-btn-accent"
                             onClick={pickRandom}
-                            style={{
-                                padding: '20px 40px',
-                                fontSize: '1.5rem',
-                                borderRadius: '50px',
-                            }}
                         >
                             Chọn Thử
                         </button>
