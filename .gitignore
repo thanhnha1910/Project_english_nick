@@ -3,7 +3,7 @@ __pycache__/
 *.pyc
 backend/venv/
 backend/*.db
-backend/static/audio/*
+# backend/static/audio/*
 backend/static/recordings/*
 backend/frontend_dist/
 
