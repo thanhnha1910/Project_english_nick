@@ -133,14 +133,31 @@ export default function Vocabulary() {
     };
 
     // ============ TTS ============
-    const speakWord = (text) => {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = 'en-US';
-            u.rate = 0.9;
-            window.speechSynthesis.speak(u);
+    const getEnglishVoice = () => {
+        const voices = window.speechSynthesis.getVoices();
+        // Priority: Google > Apple > Microsoft high-quality English voices
+        const preferred = [
+            'Google US English', 'Google UK English Female', 'Google UK English Male',
+            'Samantha', 'Daniel', 'Karen', 'Moira', 'Tessa',
+            'Microsoft Zira', 'Microsoft David', 'Microsoft Mark',
+        ];
+        for (const name of preferred) {
+            const v = voices.find(v => v.name === name);
+            if (v) return v;
         }
+        // Fallback: any voice whose lang starts with 'en'
+        return voices.find(v => v.lang.startsWith('en')) || null;
+    };
+
+    const speakWord = (text) => {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-US';
+        u.rate = 0.9;
+        const voice = getEnglishVoice();
+        if (voice) u.voice = voice;
+        window.speechSynthesis.speak(u);
     };
 
     // ============ SESSION MANAGEMENT ============

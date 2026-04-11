@@ -153,15 +153,29 @@ export default function SpeakingPractice() {
         }
     };
 
+    const getEnglishVoice = () => {
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = [
+            'Google US English', 'Google UK English Female', 'Google UK English Male',
+            'Samantha', 'Daniel', 'Karen', 'Moira', 'Tessa',
+            'Microsoft Zira', 'Microsoft David', 'Microsoft Mark',
+        ];
+        for (const name of preferred) {
+            const v = voices.find(v => v.name === name);
+            if (v) return v;
+        }
+        return voices.find(v => v.lang.startsWith('en')) || null;
+    };
+
     const speakQuestion = (text) => {
         if (!window.speechSynthesis) return;
-
-        // Cancel any ongoing speech
         window.speechSynthesis.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'en-US';
-        utterance.rate = 0.9; // Slightly slower for clarity
+        utterance.rate = 0.9;
+        const voice = getEnglishVoice();
+        if (voice) utterance.voice = voice;
 
         utterance.onstart = () => setIsSpeakingQuestion(true);
         utterance.onend = () => setIsSpeakingQuestion(false);
