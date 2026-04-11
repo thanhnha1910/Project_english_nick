@@ -315,14 +315,27 @@ h3 {
 }
 
 /* Stage Learning Layout */
+.stage-header {
+  background: var(--gradient-primary);
+  padding: 24px 32px;
+}
+
+@media (max-width: 600px) {
+  .stage-header {
+    padding: 16px 20px;
+  }
+}
+
 .stage-learning-layout {
-  display: grid;
-  grid-template-columns: 320px 1fr;
+  display: flex;
+  flex-direction: row;
   gap: 24px;
-  align-items: start;
+  align-items: flex-start;
 }
 
 .stage-audio-sidebar {
+  width: 320px;
+  flex-shrink: 0;
   padding: 0;
   max-height: calc(100vh - 280px);
   overflow: hidden;
@@ -330,14 +343,25 @@ h3 {
   flex-direction: column;
 }
 
+.stage-player-container {
+  flex: 1;
+  min-width: 0;
+  position: sticky;
+  top: 100px;
+}
+
 @media (max-width: 900px) {
   .stage-learning-layout {
-    grid-template-columns: 1fr;
+    flex-direction: column-reverse; /* Audio Player & Transcript ON TOP */
   }
   
   .stage-audio-sidebar {
-    max-height: 400px;
-    margin-bottom: 24px;
+    width: 100%;
+    max-height: 500px;
+  }
+
+  .stage-player-container {
+    position: static;
   }
 }
 
@@ -1178,6 +1202,8 @@ h3 {
   background: var(--bg-hover);
   border-radius: 8px;
   padding: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .speed-btn {
@@ -1190,6 +1216,13 @@ h3 {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+@media (max-width: 600px) {
+  .speed-btn {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+  }
 }
 
 .speed-btn:hover {

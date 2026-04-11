@@ -149,10 +149,7 @@ export default function StageLearning() {
                     </button>
 
                     {/* Header with navigation */}
-                    <div className="card mb-4" style={{
-                        background: 'var(--gradient-primary)',
-                        padding: '20px 24px',
-                    }}>
+                    <div className="card stage-header mb-4">
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                             <div>
                                 <h2 style={{ margin: 0, color: 'white' }}>
@@ -305,8 +302,8 @@ export default function StageLearning() {
                             </div>
                         </div>
 
-                        {/* Player & Transcript - STICKY */}
-                        <div style={{ position: 'sticky', top: 100 }}>
+                        {/* Player & Transcript */}
+                        <div className="stage-player-container">
                             {selectedAudio ? (
                                 <>
                                     <AudioPlayer
