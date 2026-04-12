@@ -46,8 +46,8 @@ export default function Vocabulary() {
 
     // Flashcard
     const [isFlipped, setIsFlipped] = useState(false);
-
-    // Fill-in-blank
+    const [swipeOffset, setSwipeOffset] = useState(0);
+    const [touchStartX, setTouchStartX] = useState(null);
     const [blankAnswer, setBlankAnswer] = useState('');
     const [blankResult, setBlankResult] = useState(null); // 'correct' | 'wrong' | null
     const blankInputRef = useRef(null);
@@ -388,6 +388,18 @@ export default function Vocabulary() {
         try { await deleteWord(id); fetchWords(); fetchStats(); } catch (err) { console.error(err); }
     };
 
+    const handleDeleteAll = async () => {
+        if (!confirm(`Bạn có chắc chắn muốn xóa TẤT CẢ ${words.length} thẻ trong bộ này?`)) return;
+        try {
+            await Promise.all(words.map(w => deleteWord(w.id)));
+            fetchWords();
+            fetchStats();
+        } catch (err) {
+            console.error(err);
+            alert('Lỗi khi xóa!');
+        }
+    };
+
     // ============ FORMAT HELPERS ============
     const formatInterval = (days) => {
         if (days < 0.01) return 'now';
@@ -637,26 +649,44 @@ export default function Vocabulary() {
                             </div>
                             <p className="vm-progress-text">{sessionIndex + 1} / {sessionWords.length}</p>
 
-                            <div className="vm-card-wrapper" onClick={() => {
-                                const next = !isFlipped;
-                                setIsFlipped(next);
-                                // Auto-speak: front→back = read meaning, back→front = read word
-                                if (next) {
-                                    speakWord(sessionWords[sessionIndex].meaning);
-                                } else {
-                                    speakWord(sessionWords[sessionIndex].text);
-                                }
-                            }}>
+                            <div 
+                                className="vm-card-wrapper" 
+                                style={{ transform: `translateX(${swipeOffset}px)`, transition: touchStartX ? 'none' : 'transform 0.3s ease' }}
+                                onClick={() => {
+                                    const next = !isFlipped;
+                                    setIsFlipped(next);
+                                    if (!next) {
+                                        speakWord(sessionWords[sessionIndex].text);
+                                    }
+                                    // Bỏ auto-speak meaning (the user requested "bỏ thẻ đọc ở sau")
+                                }}
+                                onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+                                onTouchMove={(e) => {
+                                    if (touchStartX === null) return;
+                                    const currentX = e.touches[0].clientX;
+                                    setSwipeOffset(currentX - touchStartX);
+                                }}
+                                onTouchEnd={(e) => {
+                                    if (swipeOffset > 100) {
+                                        // Swipe Right -> Good (3)
+                                        handleFlashcardRate(3);
+                                    } else if (swipeOffset < -100) {
+                                        // Swipe Left -> Again (1)
+                                        handleFlashcardRate(1);
+                                    }
+                                    setTouchStartX(null);
+                                    setSwipeOffset(0);
+                                }}
+                            >
                                 <div className={`vm-card ${isFlipped ? 'flipped' : ''}`}>
                                     {/* FRONT */}
                                     <div className="vm-card-face vm-card-front">
                                         <button className="vm-speak-btn" onClick={e => { e.stopPropagation(); speakWord(sessionWords[sessionIndex].text); }}>🔊</button>
                                         <div className="vm-card-word">{sessionWords[sessionIndex].text}</div>
-                                        <div className="vm-card-hint">tap to flip</div>
+                                        <div className="vm-card-hint">Tap to flip • Swipe Left (Hard) • Swipe Right (Good)</div>
                                     </div>
                                     {/* BACK */}
                                     <div className="vm-card-face vm-card-back">
-                                        <button className="vm-speak-btn" onClick={e => { e.stopPropagation(); speakWord(sessionWords[sessionIndex].text); }}>🔊</button>
                                         <div className="vm-card-meaning">{sessionWords[sessionIndex].meaning}</div>
                                         {sessionWords[sessionIndex].example && (
                                             <div className="vm-card-example">"{sessionWords[sessionIndex].example}"</div>
@@ -881,32 +911,39 @@ export default function Vocabulary() {
                             <p>No words in this collection.</p>
                         </div>
                     ) : (
-                        <div className="vm-word-grid">
-                            {words.map(word => (
-                                <div key={word.id} className="vm-word-card">
-                                    <div className="vm-word-header">
-                                        <h4>{word.text}</h4>
-                                        <div className="vm-word-actions">
-                                            <button onClick={() => speakWord(word.text)} title="Listen">🔊</button>
-                                            <button onClick={() => handleDelete(word.id)} title="Delete">✕</button>
+                        <>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+                                <button className="vm-btn-secondary" style={{ borderColor: 'red', color: 'red' }} onClick={handleDeleteAll}>
+                                    🗑️ Delete All {words.length} Words
+                                </button>
+                            </div>
+                            <div className="vm-word-grid">
+                                {words.map(word => (
+                                    <div key={word.id} className="vm-word-card">
+                                        <div className="vm-word-header">
+                                            <h4>{word.text}</h4>
+                                            <div className="vm-word-actions">
+                                                <button onClick={() => speakWord(word.text)} title="Listen">🔊</button>
+                                                <button onClick={() => handleDelete(word.id)} title="Delete">✕</button>
+                                            </div>
+                                        </div>
+                                        <p className="vm-word-meaning">{word.meaning}</p>
+                                        {word.example && <p className="vm-word-example">"{word.example}"</p>}
+                                        <div className="vm-word-footer">
+                                            <span className="vm-state-badge" style={{ background: STATE_COLORS[word.fsrs_state] }}>
+                                                {STATE_ICONS[word.fsrs_state]} {STATE_LABELS[word.fsrs_state]}
+                                            </span>
+                                            {word.fsrs_reps > 0 && (
+                                                <span className="vm-word-reps">{word.fsrs_reps} reviews</span>
+                                            )}
+                                            {word.fsrs_lapses > 0 && (
+                                                <span className="vm-word-lapses">⚠ {word.fsrs_lapses} lapses</span>
+                                            )}
                                         </div>
                                     </div>
-                                    <p className="vm-word-meaning">{word.meaning}</p>
-                                    {word.example && <p className="vm-word-example">"{word.example}"</p>}
-                                    <div className="vm-word-footer">
-                                        <span className="vm-state-badge" style={{ background: STATE_COLORS[word.fsrs_state] }}>
-                                            {STATE_ICONS[word.fsrs_state]} {STATE_LABELS[word.fsrs_state]}
-                                        </span>
-                                        {word.fsrs_reps > 0 && (
-                                            <span className="vm-word-reps">{word.fsrs_reps} reviews</span>
-                                        )}
-                                        {word.fsrs_lapses > 0 && (
-                                            <span className="vm-word-lapses">⚠ {word.fsrs_lapses} lapses</span>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </div>
             )}
