@@ -656,27 +656,35 @@ export default function Vocabulary() {
                                     transition: touchStartX ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                                     touchAction: 'pan-y', // Prevent horizontal mobile scrolling while swiping
                                     userSelect: 'none',
-                                    willChange: 'transform'
+                                    WebkitUserSelect: 'none',
+                                    willChange: 'transform',
+                                    cursor: touchStartX ? 'grabbing' : 'grab'
                                 }}
-                                onClick={() => {
-                                    const next = !isFlipped;
-                                    setIsFlipped(next);
-                                    if (!next) {
-                                        speakWord(sessionWords[sessionIndex].text);
-                                    }
+                                onPointerDown={(e) => {
+                                    e.currentTarget.setPointerCapture(e.pointerId);
+                                    setTouchStartX(e.clientX);
                                 }}
-                                onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
-                                onTouchMove={(e) => {
+                                onPointerMove={(e) => {
                                     if (touchStartX === null) return;
-                                    const currentX = e.touches[0].clientX;
-                                    setSwipeOffset(currentX - touchStartX);
+                                    setSwipeOffset(e.clientX - touchStartX);
                                 }}
-                                onTouchEnd={(e) => {
+                                onPointerUp={(e) => {
+                                    if (touchStartX === null) return;
+                                    e.currentTarget.releasePointerCapture(e.pointerId);
+                                    
                                     if (swipeOffset > 80) { // Giảm ngưỡng để dễ swipe trên mobile
                                         handleFlashcardRate(3); // Swipe Right -> Good
                                     } else if (swipeOffset < -80) {
                                         handleFlashcardRate(1); // Swipe Left -> Again
+                                    } else if (Math.abs(swipeOffset) < 10) {
+                                        // Click detected (very short distance)
+                                        const next = !isFlipped;
+                                        setIsFlipped(next);
+                                        if (!next) {
+                                            speakWord(sessionWords[sessionIndex].text);
+                                        }
                                     }
+                                    
                                     setTouchStartX(null);
                                     setSwipeOffset(0);
                                 }}
