@@ -651,14 +651,19 @@ export default function Vocabulary() {
 
                             <div 
                                 className="vm-card-wrapper" 
-                                style={{ transform: `translateX(${swipeOffset}px)`, transition: touchStartX ? 'none' : 'transform 0.3s ease' }}
+                                style={{ 
+                                    transform: `translateX(${swipeOffset}px) rotate(${swipeOffset * 0.05}deg)`, 
+                                    transition: touchStartX ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                    touchAction: 'pan-y', // Prevent horizontal mobile scrolling while swiping
+                                    userSelect: 'none',
+                                    willChange: 'transform'
+                                }}
                                 onClick={() => {
                                     const next = !isFlipped;
                                     setIsFlipped(next);
                                     if (!next) {
                                         speakWord(sessionWords[sessionIndex].text);
                                     }
-                                    // Bỏ auto-speak meaning (the user requested "bỏ thẻ đọc ở sau")
                                 }}
                                 onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
                                 onTouchMove={(e) => {
@@ -667,12 +672,10 @@ export default function Vocabulary() {
                                     setSwipeOffset(currentX - touchStartX);
                                 }}
                                 onTouchEnd={(e) => {
-                                    if (swipeOffset > 100) {
-                                        // Swipe Right -> Good (3)
-                                        handleFlashcardRate(3);
-                                    } else if (swipeOffset < -100) {
-                                        // Swipe Left -> Again (1)
-                                        handleFlashcardRate(1);
+                                    if (swipeOffset > 80) { // Giảm ngưỡng để dễ swipe trên mobile
+                                        handleFlashcardRate(3); // Swipe Right -> Good
+                                    } else if (swipeOffset < -80) {
+                                        handleFlashcardRate(1); // Swipe Left -> Again
                                     }
                                     setTouchStartX(null);
                                     setSwipeOffset(0);
