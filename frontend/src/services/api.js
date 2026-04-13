@@ -79,8 +79,13 @@ export const getQuestions = (stageId = null) => {
     const params = stageId ? { stage_id: stageId } : {};
     return api.get('/speaking/questions', { params });
 };
-export const getRandomQuestion = (stageId = null) => {
-    const params = stageId ? { stage_id: stageId } : {};
+export const getRandomQuestion = (stageIds = []) => {
+    const params = new URLSearchParams();
+    const ids = Array.isArray(stageIds) ? stageIds : (stageIds ? [stageIds] : []);
+    
+    if (ids.length > 0) {
+        ids.forEach(id => params.append('stage_id', id));
+    }
     return api.get('/speaking/questions/random', { params });
 };
 export const submitRecording = (questionId, audioBlob) => {

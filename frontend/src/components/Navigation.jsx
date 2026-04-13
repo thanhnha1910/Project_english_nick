@@ -38,6 +38,9 @@ export default function Navigation() {
                     <NavLink to="/speaking" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
                         Luyện nói
                     </NavLink>
+                    <NavLink to="/question-making" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
+                        Đặt câu hỏi
+                    </NavLink>
                     <NavLink to="/import" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={closeMenu}>
                         Import Audio
                     </NavLink>

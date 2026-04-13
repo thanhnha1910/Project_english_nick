@@ -5,6 +5,7 @@ import StageLearning from './pages/StageLearning';
 import RandomPractice from './pages/RandomPractice';
 import RandomPicker from './pages/RandomPicker';
 import SpeakingPractice from './pages/SpeakingPractice';
+import QuestionMaking from './pages/QuestionMaking';
 import AdminImport from './pages/AdminImport';
 import Vocabulary from './pages/Vocabulary';
 import ParagraphListening from './pages/ParagraphListening';
@@ -20,6 +21,7 @@ function App() {
         <Route path="/random" element={<RandomPractice />} />
         <Route path="/picker" element={<RandomPicker />} />
         <Route path="/speaking" element={<SpeakingPractice />} />
+        <Route path="/question-making" element={<QuestionMaking />} />
         <Route path="/import" element={<AdminImport />} />
         <Route path="/vocabulary" element={<Vocabulary />} />
         <Route path="/paragraph-listening" element={<ParagraphListening />} />
