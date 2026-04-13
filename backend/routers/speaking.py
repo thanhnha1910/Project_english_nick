@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -27,21 +27,21 @@ def get_all_questions(
 
 @router.get("/questions/random", response_model=QuestionResponse)
 def get_random_question(
-    stage_id: Optional[int] = None,
+    stage_id: Optional[List[int]] = Query(None),
     db: Session = Depends(get_db)
 ):
     """Lấy câu hỏi ngẫu nhiên. Nếu không có câu hỏi ở mục Luyện Nói, sẽ tự lấy các câu trong Audio Transcript làm câu hỏi thay thế."""
     import random
     query = db.query(Question)
     if stage_id:
-        query = query.filter(Question.stage_id == stage_id)
+        query = query.filter(Question.stage_id.in_(stage_id))
     
     questions = query.all()
     if not questions:
         # Fallback: Find audios for the stage and extract transcript sentences
         audio_query = db.query(Audio)
         if stage_id:
-            audio_query = audio_query.filter(Audio.stage_id == stage_id)
+            audio_query = audio_query.filter(Audio.stage_id.in_(stage_id))
         audios = audio_query.all()
         
         sentences = []
