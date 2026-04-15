@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import List, Optional
 import os
 import aiofiles
@@ -21,7 +22,9 @@ def get_all_questions(
     """Lấy danh sách câu hỏi"""
     query = db.query(Question)
     if stage_id:
-        query = query.filter(Question.stage_id == stage_id)
+        query = query.filter(
+            or_(Question.stage_id == stage_id, Question.stage_id.is_(None))
+        )
     return query.all()
 
 
@@ -34,7 +37,9 @@ def get_random_question(
     import random
     query = db.query(Question)
     if stage_id:
-        query = query.filter(Question.stage_id.in_(stage_id))
+        query = query.filter(
+            or_(Question.stage_id.in_(stage_id), Question.stage_id.is_(None))
+        )
     
     questions = query.all()
     if not questions:
