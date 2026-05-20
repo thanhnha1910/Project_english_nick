@@ -4,8 +4,6 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 import random
-import shutil
-import aiofiles
 
 from models import get_db, Audio, Stage
 from schemas import (
@@ -13,10 +11,11 @@ from schemas import (
     ShuffledTranscript, TranscriptLine, BulkImportResult,
     TranscriptUpdate
 )
+from supabase_client import upload_audio_bytes, delete_audio_by_url
 
 router = APIRouter(prefix="/api/audios", tags=["audios"])
 
-AUDIO_DIR = "static/audio"
+AUDIO_DIR = "static/audio"  # legacy, chỉ giữ cho file cũ chưa migrate
 
 
 @router.get("", response_model=List[AudioResponse])
@@ -108,29 +107,25 @@ async def upload_audio(
     stage_id: Optional[int] = Form(None),
     file: UploadFile = File(...)
 ):
-    """Upload một audio file"""
+    """Upload một audio file lên Supabase Storage"""
     db = next(get_db())
-    
-    # Tạo folder nếu chưa có
-    os.makedirs(AUDIO_DIR, exist_ok=True)
-    
-    # Lưu file
-    file_path = os.path.join(AUDIO_DIR, file.filename)
-    async with aiofiles.open(file_path, 'wb') as out_file:
-        content = await file.read()
-        await out_file.write(content)
-    
-    # Tạo record trong DB
+
+    content = await file.read()
+    try:
+        public_url = upload_audio_bytes(file.filename, content)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload Supabase thất bại: {e}")
+
     audio = Audio(
         title=title,
-        file_path=file_path,
+        file_path=public_url,
         transcript=transcript,
         stage_id=stage_id
     )
     db.add(audio)
     db.commit()
     db.refresh(audio)
-    
+
     return audio
 
 
@@ -145,13 +140,12 @@ async def bulk_import_audios(
     import json
     
     db = next(get_db())
-    os.makedirs(AUDIO_DIR, exist_ok=True)
-    
+
     imported = 0
     failed = 0
     errors = []
     imported_ids = []
-    
+
     # Parse transcripts
     transcript_list = []
     if transcripts:
@@ -159,52 +153,45 @@ async def bulk_import_audios(
             transcript_list = json.loads(transcripts)
         except Exception as e:
             print(f"Error parsing transcripts JSON: {e}")
-    
+
     # Natural sort function (1, 2, 10 thay vì 1, 10, 2)
     def natural_sort_key(file):
-        return [int(c) if c.isdigit() else c.lower() 
+        return [int(c) if c.isdigit() else c.lower()
                 for c in re.split(r'(\d+)', file.filename)]
-    
-    # Sort files theo thứ tự tự nhiên
+
     sorted_files = sorted(files, key=natural_sort_key)
-    
+
     for idx, file in enumerate(sorted_files):
         try:
-            # Chỉ chấp nhận audio files
             if not file.filename.lower().endswith(('.mp3', '.wav', '.m4a', '.ogg', '.webm')):
                 errors.append(f"{file.filename}: Không phải file audio")
                 failed += 1
                 continue
-            
-            file_path = os.path.join(AUDIO_DIR, file.filename)
-            
-            async with aiofiles.open(file_path, 'wb') as out_file:
-                content = await file.read()
-                await out_file.write(content)
-            
-            # Tự động lấy title từ tên file
+
+            content = await file.read()
+            public_url = upload_audio_bytes(file.filename, content)
+
             title = os.path.splitext(file.filename)[0]
-            
-            # Khớp transcript theo index
+
             transcript_text = None
             if idx < len(transcript_list):
                 transcript_text = transcript_list[idx]
-            
+
             audio = Audio(
                 title=title,
-                file_path=file_path,
+                file_path=public_url,
                 transcript=transcript_text,
                 stage_id=stage_id
             )
             db.add(audio)
-            db.flush()  # Để lấy ID
+            db.flush()
             imported_ids.append(audio.id)
             imported += 1
-            
+
         except Exception as e:
             errors.append(f"{file.filename}: {str(e)}")
             failed += 1
-    
+
     db.commit()
     
     return BulkImportResult(
@@ -336,15 +323,20 @@ async def webhook_generate_transcript(
 
 @router.delete("/{audio_id}")
 def delete_audio(audio_id: int, db: Session = Depends(get_db)):
-    """Xóa audio"""
+    """Xóa audio (cả record DB và file trên Supabase / local)"""
     audio = db.query(Audio).filter(Audio.id == audio_id).first()
     if not audio:
         raise HTTPException(status_code=404, detail="Audio not found")
-    
-    # Xóa file
-    if os.path.exists(audio.file_path):
-        os.remove(audio.file_path)
-    
+
+    fp = audio.file_path or ""
+    if fp.startswith("http"):
+        try:
+            delete_audio_by_url(fp)
+        except Exception as e:
+            print(f"Warning: không xóa được file Supabase {fp}: {e}")
+    elif os.path.exists(fp):
+        os.remove(fp)
+
     db.delete(audio)
     db.commit()
     return {"message": "Deleted successfully"}

@@ -44,7 +44,8 @@ export default function AudioPlayer({ audio, onEnded }) {
 
     useEffect(() => {
         if (audio && audioRef.current) {
-            audioRef.current.src = `${STATIC_BASE_URL}/${audio.file_path}`;
+            const fp = audio.file_path || '';
+            audioRef.current.src = fp.startsWith('http') ? fp : `${STATIC_BASE_URL}/${fp}`;
             audioRef.current.load();
             setIsPlaying(false);
             setCurrentTime(0);

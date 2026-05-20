@@ -33,46 +33,54 @@ def get_random_question(
     stage_id: Optional[List[int]] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Lấy câu hỏi ngẫu nhiên. Nếu không có câu hỏi ở mục Luyện Nói, sẽ tự lấy các câu trong Audio Transcript làm câu hỏi thay thế."""
+    """Lấy câu hỏi ngẫu nhiên từ cả bảng questions + audio transcript, gộp lại rồi random."""
     import random
-    query = db.query(Question)
+    import re
+
+    # 1) Lấy câu hỏi từ bảng questions
+    q_query = db.query(Question)
     if stage_id:
-        query = query.filter(
+        q_query = q_query.filter(
             or_(Question.stage_id.in_(stage_id), Question.stage_id.is_(None))
         )
-    
-    questions = query.all()
-    if not questions:
-        # Fallback: Find audios for the stage and extract transcript sentences
-        audio_query = db.query(Audio)
-        if stage_id:
-            audio_query = audio_query.filter(Audio.stage_id.in_(stage_id))
-        audios = audio_query.all()
-        
-        sentences = []
-        for audio in audios:
-            if audio.transcript:
-                # Split by dot, newline, or multiple spaces to get sentences
-                import re
-                parts = re.split(r'[.\n]', audio.transcript)
-                for part in parts:
-                    part = part.strip()
-                    # Filter out short or completely digit strings (e.g., sequence numbers)
-                    if len(part) > 5 and not bool(re.match(r'^[\d\W]+$', part)):
-                        sentences.append(part)
-        
-        if sentences:
-            random_sentence = random.choice(sentences)
-            return QuestionResponse(
-                id=999999, # Dummy ID for fallback
-                question_text=random_sentence,
-                sample_answer=None,
-                created_at=datetime.utcnow()
-            )
-            
+    db_questions = q_query.all()
+
+    # 2) Lấy câu từ audio transcript
+    audio_query = db.query(Audio)
+    if stage_id:
+        audio_query = audio_query.filter(Audio.stage_id.in_(stage_id))
+    audios = audio_query.all()
+
+    transcript_sentences = []
+    for audio in audios:
+        if audio.transcript:
+            parts = re.split(r'[.\n]', audio.transcript)
+            for part in parts:
+                part = part.strip()
+                if len(part) > 5 and not bool(re.match(r'^[\d\W]+$', part)):
+                    transcript_sentences.append(part)
+
+    # 3) Gộp tất cả vào 1 pool
+    pool = []
+    for q in db_questions:
+        pool.append(("db", q))
+    for s in transcript_sentences:
+        pool.append(("transcript", s))
+
+    if not pool:
         raise HTTPException(status_code=404, detail="Không có câu hỏi nào và cũng không có audio transcript để luyện tập.")
-    
-    return random.choice(questions)
+
+    # 4) Random pick
+    source, item = random.choice(pool)
+    if source == "db":
+        return item
+    else:
+        return QuestionResponse(
+            id=999999,
+            question_text=item,
+            sample_answer=None,
+            created_at=datetime.utcnow()
+        )
 
 
 @router.post("/questions", response_model=QuestionResponse)

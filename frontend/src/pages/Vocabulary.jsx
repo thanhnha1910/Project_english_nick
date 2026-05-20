@@ -51,6 +51,8 @@ export default function Vocabulary() {
     const [blankAnswer, setBlankAnswer] = useState('');
     const [blankResult, setBlankResult] = useState(null); // 'correct' | 'wrong' | null
     const blankInputRef = useRef(null);
+    // Flashcard mode: 'word' = show word first, 'meaning' = show meaning first (guess the word)
+    const [flashcardMode, setFlashcardMode] = useState('word');
 
     // Matching
     const [matchPairs, setMatchPairs] = useState([]);
@@ -133,6 +135,11 @@ export default function Vocabulary() {
     };
 
     // ============ TTS ============
+    const cleanTextForTTS = (text) => {
+        // Strip emojis, icons, and non-alphanumeric symbols (keep letters, numbers, spaces, basic punctuation)
+        return text.replace(/[\u{1F000}-\u{1FFFF}|\u{2600}-\u{27BF}|\u{FE00}-\u{FEFF}|\u{1F900}-\u{1F9FF}|\u{200D}|\u{20E3}|\u{E0020}-\u{E007F}|\u{2702}-\u{27B0}|\u{FE0F}]/gu, '').trim();
+    };
+
     const getEnglishVoice = () => {
         const voices = window.speechSynthesis.getVoices();
         // Priority: Google > Apple > Microsoft high-quality English voices
@@ -152,7 +159,9 @@ export default function Vocabulary() {
     const speakWord = (text) => {
         if (!('speechSynthesis' in window)) return;
         window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
+        const cleaned = cleanTextForTTS(text);
+        if (!cleaned) return;
+        const u = new SpeechSynthesisUtterance(cleaned);
         u.lang = 'en-US';
         u.rate = 0.9;
         const voice = getEnglishVoice();
@@ -644,17 +653,41 @@ export default function Vocabulary() {
                 <div className="vm-flashcard-container fade-in">
                     {sessionWords.length > 0 && sessionIndex < sessionWords.length ? (
                         <>
+                            {/* Mode Toggle */}
+                            <div className="vm-mode-toggle">
+                                <button
+                                    className={`vm-mode-btn ${flashcardMode === 'word' ? 'active' : ''}`}
+                                    onClick={() => setFlashcardMode('word')}
+                                >
+                                    <span className="vm-mode-label">EN → VI</span>
+                                    <span className="vm-mode-desc">Xem từ, đoán nghĩa</span>
+                                </button>
+                                <button
+                                    className={`vm-mode-btn ${flashcardMode === 'meaning' ? 'active' : ''}`}
+                                    onClick={() => setFlashcardMode('meaning')}
+                                >
+                                    <span className="vm-mode-label">VI → EN</span>
+                                    <span className="vm-mode-desc">Xem nghĩa, đoán từ</span>
+                                </button>
+                            </div>
+
                             <div className="vm-progress-bar">
                                 <div className="vm-progress-fill" style={{ width: `${((sessionIndex) / sessionWords.length) * 100}%` }} />
                             </div>
                             <p className="vm-progress-text">{sessionIndex + 1} / {sessionWords.length}</p>
 
+                            {/* Swipe Indicators */}
+                            <div className="vm-swipe-indicators">
+                                <span className={`vm-swipe-hint left ${swipeOffset < -30 ? 'active' : ''}`}>Again</span>
+                                <span className={`vm-swipe-hint right ${swipeOffset > 30 ? 'active' : ''}`}>Good</span>
+                            </div>
+
                             <div 
                                 className="vm-card-wrapper" 
                                 style={{ 
-                                    transform: `translateX(${swipeOffset}px) rotate(${swipeOffset * 0.05}deg)`, 
+                                    transform: `translateX(${swipeOffset}px) rotate(${swipeOffset * 0.03}deg)`, 
                                     transition: touchStartX ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                                    touchAction: 'pan-y', // Prevent horizontal mobile scrolling while swiping
+                                    touchAction: 'pan-y',
                                     userSelect: 'none',
                                     WebkitUserSelect: 'none',
                                     willChange: 'transform',
@@ -672,15 +705,14 @@ export default function Vocabulary() {
                                     if (touchStartX === null) return;
                                     e.currentTarget.releasePointerCapture(e.pointerId);
                                     
-                                    if (swipeOffset > 80) { // Giảm ngưỡng để dễ swipe trên mobile
+                                    if (swipeOffset > 80) {
                                         handleFlashcardRate(3); // Swipe Right -> Good
                                     } else if (swipeOffset < -80) {
                                         handleFlashcardRate(1); // Swipe Left -> Again
                                     } else if (Math.abs(swipeOffset) < 10) {
-                                        // Click detected (very short distance)
                                         const next = !isFlipped;
                                         setIsFlipped(next);
-                                        if (!next) {
+                                        if (!next && flashcardMode === 'word') {
                                             speakWord(sessionWords[sessionIndex].text);
                                         }
                                     }
@@ -690,17 +722,43 @@ export default function Vocabulary() {
                                 }}
                             >
                                 <div className={`vm-card ${isFlipped ? 'flipped' : ''}`}>
-                                    {/* FRONT */}
+                                    {/* FRONT — adapts to mode */}
                                     <div className="vm-card-face vm-card-front">
-                                        <button className="vm-speak-btn" onClick={e => { e.stopPropagation(); speakWord(sessionWords[sessionIndex].text); }}>🔊</button>
-                                        <div className="vm-card-word">{sessionWords[sessionIndex].text}</div>
-                                        <div className="vm-card-hint">Tap to flip • Swipe Left (Hard) • Swipe Right (Good)</div>
+                                        {flashcardMode === 'word' ? (
+                                            <>
+                                                <button className="vm-speak-btn" onClick={e => { e.stopPropagation(); speakWord(sessionWords[sessionIndex].text); }} aria-label="Listen">
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                                                </button>
+                                                <div className="vm-card-word">{sessionWords[sessionIndex].text}</div>
+                                                <div className="vm-card-hint">Tap to see meaning</div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="vm-card-mode-badge">Nghĩa</div>
+                                                <div className="vm-card-meaning-front">{sessionWords[sessionIndex].meaning}</div>
+                                                <div className="vm-card-hint">Tap to see the word</div>
+                                            </>
+                                        )}
                                     </div>
-                                    {/* BACK */}
+                                    {/* BACK — adapts to mode */}
                                     <div className="vm-card-face vm-card-back">
-                                        <div className="vm-card-meaning">{sessionWords[sessionIndex].meaning}</div>
-                                        {sessionWords[sessionIndex].example && (
-                                            <div className="vm-card-example">"{sessionWords[sessionIndex].example}"</div>
+                                        {flashcardMode === 'word' ? (
+                                            <>
+                                                <div className="vm-card-meaning">{sessionWords[sessionIndex].meaning}</div>
+                                                {sessionWords[sessionIndex].example && (
+                                                    <div className="vm-card-example">"{sessionWords[sessionIndex].example}"</div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button className="vm-speak-btn vm-speak-btn-back" onClick={e => { e.stopPropagation(); speakWord(sessionWords[sessionIndex].text); }} aria-label="Listen">
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                                                </button>
+                                                <div className="vm-card-word">{sessionWords[sessionIndex].text}</div>
+                                                {sessionWords[sessionIndex].example && (
+                                                    <div className="vm-card-example">"{sessionWords[sessionIndex].example}"</div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -715,7 +773,6 @@ export default function Vocabulary() {
                                             style={{ '--rating-color': r.color, '--rating-bg': r.bg }}
                                             onClick={() => handleFlashcardRate(r.value)}
                                         >
-                                            <span className="vm-rating-icon">{r.icon}</span>
                                             <span className="vm-rating-label">{r.label}</span>
                                         </button>
                                     ))}

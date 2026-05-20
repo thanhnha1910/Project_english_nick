@@ -66,12 +66,15 @@ def migrate_table(table):
     cols_str = ', '.join([f'"{c}"' for c in columns])
     placeholders = ', '.join(['%s'] * len(columns))
     
-    # TRUNCATE table first (clears ALL data, resets state)
-    pg_cursor.execute(f'TRUNCATE TABLE "{table}" CASCADE')
-    pg_conn.commit()
+    # Build UPSERT query (Insert or Update if exists)
+    # Ignore 'id' for the UPDATE SET to avoid changing the primary key
+    update_set = ', '.join([f'"{c}" = EXCLUDED."{c}"' for c in columns if c != 'id'])
     
-    # Insert all rows
-    query = f'INSERT INTO "{table}" ({cols_str}) VALUES ({placeholders})'
+    if update_set:
+        query = f'INSERT INTO "{table}" ({cols_str}) VALUES ({placeholders}) ON CONFLICT (id) DO UPDATE SET {update_set}'
+    else:
+        query = f'INSERT INTO "{table}" ({cols_str}) VALUES ({placeholders}) ON CONFLICT (id) DO NOTHING'
+
     inserted = 0
     for row in rows:
         try:
@@ -83,7 +86,7 @@ def migrate_table(table):
             pg_conn.rollback()
             continue
     
-    print(f"  ✅ {table}: {inserted}/{len(rows)} rows migrated")
+    print(f"  ✅ {table}: {inserted}/{len(rows)} rows processed (Added/Updated)")
     return inserted
 
 # First, create tables on PostgreSQL (via SQLAlchemy)

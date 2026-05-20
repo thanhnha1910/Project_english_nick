@@ -4,6 +4,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from models import init_db
 from routers import audio, stages, speaking, vocabulary
 

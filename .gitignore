@@ -18,3 +18,8 @@ frontend/dist/
 
 # OS
 .DS_Store
+
+# Secrets - KHÔNG commit .env vì chứa SUPABASE_SERVICE_KEY và DB credentials
+.env
+.env.*
+!.env.example
